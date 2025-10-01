@@ -53,7 +53,6 @@ interface Order {
   status: string;
   created_at: string;
   menu_items: { title: string };
-  pickup_zones: { name: string };
 }
 
 interface MenuItem {
@@ -61,18 +60,31 @@ interface MenuItem {
   title: string;
   description: string;
   price: number;
-  image_url: string;
+  image_url: string | null;
   is_negotiable: boolean;
   is_available: boolean;
+  category: string;
+  pinned: boolean;
+}
+
+interface DeliveryFeeTier {
+  id: string;
+  min_amount: number;
+  max_amount: number | null;
+  fee: number;
 }
 
 const Admin = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [deliveryTiers, setDeliveryTiers] = useState<DeliveryFeeTier[]>([]);
   const [stats, setStats] = useState({ pending: 0, inProgress: 0, delivered: 0 });
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [menuDialogOpen, setMenuDialogOpen] = useState(false);
+  const [editingTier, setEditingTier] = useState<DeliveryFeeTier | null>(null);
+  const [tierDialogOpen, setTierDialogOpen] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     const isAuth = localStorage.getItem("adminAuth");
@@ -90,8 +102,7 @@ const Admin = () => {
       .from("orders")
       .select(`
         *,
-        menu_items(title),
-        pickup_zones(name)
+        menu_items(title)
       `)
       .order("created_at", { ascending: false });
 
@@ -108,9 +119,18 @@ const Admin = () => {
     const { data: menuData } = await supabase
       .from("menu_items")
       .select("*")
+      .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (menuData) setMenuItems(menuData);
+
+    // Load delivery fee tiers
+    const { data: tiersData } = await supabase
+      .from("delivery_fee_tiers")
+      .select("*")
+      .order("min_amount", { ascending: true });
+
+    if (tiersData) setDeliveryTiers(tiersData);
   };
 
   const handleLogout = () => {
@@ -133,17 +153,51 @@ const Admin = () => {
     loadData();
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("menu-images")
+      .upload(filePath, file);
+
+    setUploadingImage(false);
+
+    if (uploadError) {
+      toast.error("Failed to upload image");
+      return;
+    }
+
+    const { data } = supabase.storage.from("menu-images").getPublicUrl(filePath);
+    return data.publicUrl;
+  };
+
   const handleSaveMenuItem = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+
+    const imageFile = (e.currentTarget.elements.namedItem("image_file") as HTMLInputElement)?.files?.[0];
+    let imageUrl = formData.get("image_url") as string;
+
+    if (imageFile) {
+      const uploadedUrl = await handleImageUpload({ target: { files: [imageFile] } } as any);
+      if (uploadedUrl) imageUrl = uploadedUrl;
+    }
 
     const data = {
       title: formData.get("title") as string,
       description: formData.get("description") as string,
       price: parseInt(formData.get("price") as string),
-      image_url: formData.get("image_url") as string,
+      image_url: imageUrl || null,
       is_negotiable: formData.get("is_negotiable") === "on",
       is_available: formData.get("is_available") === "on",
+      category: formData.get("category") as string,
+      pinned: formData.get("pinned") === "on",
     };
 
     if (editingItem) {
@@ -186,14 +240,63 @@ const Admin = () => {
     loadData();
   };
 
+  const handleSaveDeliveryTier = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+
+    const data = {
+      min_amount: parseInt(formData.get("min_amount") as string),
+      max_amount: formData.get("max_amount") ? parseInt(formData.get("max_amount") as string) : null,
+      fee: parseInt(formData.get("fee") as string),
+    };
+
+    if (editingTier) {
+      const { error } = await supabase
+        .from("delivery_fee_tiers")
+        .update(data)
+        .eq("id", editingTier.id);
+
+      if (error) {
+        toast.error("Failed to update tier");
+        return;
+      }
+      toast.success("Tier updated!");
+    } else {
+      const { error } = await supabase.from("delivery_fee_tiers").insert(data);
+
+      if (error) {
+        toast.error("Failed to create tier");
+        return;
+      }
+      toast.success("Tier created!");
+    }
+
+    setTierDialogOpen(false);
+    setEditingTier(null);
+    loadData();
+  };
+
+  const deleteDeliveryTier = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this tier?")) return;
+
+    const { error } = await supabase.from("delivery_fee_tiers").delete().eq("id", id);
+
+    if (error) {
+      toast.error("Failed to delete tier");
+      return;
+    }
+
+    toast.success("Tier deleted!");
+    loadData();
+  };
+
   const exportOrders = () => {
     const csv = [
-      ["Receipt Code", "Item", "Qty", "Zone", "Contact", "Status", "Total", "Date"],
+      ["Receipt Code", "Item", "Qty", "Contact", "Status", "Total", "Date"],
       ...orders.map((o) => [
         o.receipt_code,
         o.menu_items.title,
         o.quantity,
-        o.pickup_zones.name,
         o.contact_phone,
         o.status,
         o.total_amount,
@@ -270,6 +373,7 @@ const Admin = () => {
           <TabsList className="mb-6">
             <TabsTrigger value="orders">Orders</TabsTrigger>
             <TabsTrigger value="menu">Menu Manager</TabsTrigger>
+            <TabsTrigger value="delivery">Delivery Fees</TabsTrigger>
           </TabsList>
 
           {/* Orders Tab */}
@@ -289,7 +393,6 @@ const Admin = () => {
                         <TableHead>Receipt</TableHead>
                         <TableHead>Item</TableHead>
                         <TableHead>Qty</TableHead>
-                        <TableHead>Zone</TableHead>
                         <TableHead>Contact</TableHead>
                         <TableHead>Total</TableHead>
                         <TableHead>Status</TableHead>
@@ -304,7 +407,6 @@ const Admin = () => {
                           </TableCell>
                           <TableCell>{order.menu_items.title}</TableCell>
                           <TableCell>{order.quantity}</TableCell>
-                          <TableCell>{order.pickup_zones.name}</TableCell>
                           <TableCell>{order.contact_phone}</TableCell>
                           <TableCell>KES {order.total_amount}</TableCell>
                           <TableCell>
@@ -370,7 +472,7 @@ const Admin = () => {
                       Add Item
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-md">
+                  <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>
                         {editingItem ? "Edit" : "Add"} Menu Item
@@ -405,14 +507,46 @@ const Admin = () => {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="image_url">Image URL</Label>
+                        <Label htmlFor="category">Category</Label>
+                        <Select name="category" defaultValue={editingItem?.category || "food"}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="snacks">Snacks</SelectItem>
+                            <SelectItem value="food">Food</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Image Upload</Label>
+                        <Input
+                          id="image_file"
+                          name="image_file"
+                          type="file"
+                          accept="image/*"
+                          disabled={uploadingImage}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Or enter an image URL below (optional)
+                        </p>
+                      </div>
+                      <div>
+                        <Label htmlFor="image_url">Image URL (Optional)</Label>
                         <Input
                           id="image_url"
                           name="image_url"
-                          defaultValue={editingItem?.image_url}
+                          defaultValue={editingItem?.image_url || ""}
                           placeholder="https://..."
-                          required
                         />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="pinned"
+                          name="pinned"
+                          defaultChecked={editingItem?.pinned}
+                        />
+                        <Label htmlFor="pinned">Pin to Top</Label>
                       </div>
                       <div className="flex items-center gap-2">
                         <Switch
@@ -432,8 +566,8 @@ const Admin = () => {
                         />
                         <Label htmlFor="is_available">Available</Label>
                       </div>
-                      <Button type="submit" className="w-full">
-                        {editingItem ? "Update" : "Create"} Item
+                      <Button type="submit" className="w-full" disabled={uploadingImage}>
+                        {uploadingImage ? "Uploading..." : editingItem ? "Update" : "Create"} Item
                       </Button>
                     </form>
                   </DialogContent>
@@ -444,7 +578,7 @@ const Admin = () => {
                   {menuItems.map((item) => (
                     <Card key={item.id}>
                       <img
-                        src={item.image_url}
+                        src={item.image_url || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400"}
                         alt={item.title}
                         className="w-full h-40 object-cover"
                       />
@@ -456,7 +590,13 @@ const Admin = () => {
                         <p className="text-lg font-bold text-primary mb-3">
                           KES {item.price}
                         </p>
-                        <div className="flex gap-2 mb-3">
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          <Badge variant={item.category === "snacks" ? "default" : "secondary"}>
+                            {item.category}
+                          </Badge>
+                          {item.pinned && (
+                            <Badge variant="outline">Pinned</Badge>
+                          )}
                           {item.is_negotiable && (
                             <Badge variant="secondary">Negotiable</Badge>
                           )}
@@ -491,6 +631,112 @@ const Admin = () => {
                     </Card>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Delivery Fees Tab */}
+          <TabsContent value="delivery">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Delivery Fee Tiers</CardTitle>
+                <Dialog open={tierDialogOpen} onOpenChange={setTierDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      onClick={() => setEditingTier(null)}
+                      className="gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Tier
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>
+                        {editingTier ? "Edit" : "Add"} Delivery Fee Tier
+                      </DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleSaveDeliveryTier} className="space-y-4">
+                      <div>
+                        <Label htmlFor="min_amount">Minimum Order (KES)</Label>
+                        <Input
+                          id="min_amount"
+                          name="min_amount"
+                          type="number"
+                          defaultValue={editingTier?.min_amount}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="max_amount">Maximum Order (KES)</Label>
+                        <Input
+                          id="max_amount"
+                          name="max_amount"
+                          type="number"
+                          defaultValue={editingTier?.max_amount || ""}
+                          placeholder="Leave empty for no limit"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="fee">Delivery Fee (KES)</Label>
+                        <Input
+                          id="fee"
+                          name="fee"
+                          type="number"
+                          defaultValue={editingTier?.fee}
+                          required
+                        />
+                      </div>
+                      <Button type="submit" className="w-full">
+                        {editingTier ? "Update" : "Create"} Tier
+                      </Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Min Amount</TableHead>
+                      <TableHead>Max Amount</TableHead>
+                      <TableHead>Delivery Fee</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {deliveryTiers.map((tier) => (
+                      <TableRow key={tier.id}>
+                        <TableCell>KES {tier.min_amount}</TableCell>
+                        <TableCell>
+                          {tier.max_amount ? `KES ${tier.max_amount}` : "No limit"}
+                        </TableCell>
+                        <TableCell>KES {tier.fee}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setEditingTier(tier);
+                                setTierDialogOpen(true);
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => deleteDeliveryTier(tier.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>

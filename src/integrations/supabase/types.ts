@@ -14,39 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      delivery_fee_tiers: {
+        Row: {
+          created_at: string
+          fee: number
+          id: string
+          max_amount: number | null
+          min_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fee: number
+          id?: string
+          max_amount?: number | null
+          min_amount: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fee?: number
+          id?: string
+          max_amount?: number | null
+          min_amount?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       menu_items: {
         Row: {
+          category: string
           created_at: string
           description: string | null
           id: string
           image_url: string | null
           is_available: boolean | null
           is_negotiable: boolean | null
+          pinned: boolean
           price: number
           title: string
           updated_at: string
+          view_count: number
         }
         Insert: {
+          category?: string
           created_at?: string
           description?: string | null
           id?: string
           image_url?: string | null
           is_available?: boolean | null
           is_negotiable?: boolean | null
+          pinned?: boolean
           price: number
           title: string
           updated_at?: string
+          view_count?: number
         }
         Update: {
+          category?: string
           created_at?: string
           description?: string | null
           id?: string
           image_url?: string | null
           is_available?: boolean | null
           is_negotiable?: boolean | null
+          pinned?: boolean
           price?: number
           title?: string
           updated_at?: string
+          view_count?: number
         }
         Relationships: []
       }
@@ -57,7 +93,6 @@ export type Database = {
           delivery_fee: number
           id: string
           item_id: string
-          pickup_zone_id: string
           quantity: number
           receipt_code: string
           room_number: string | null
@@ -72,7 +107,6 @@ export type Database = {
           delivery_fee: number
           id?: string
           item_id: string
-          pickup_zone_id: string
           quantity: number
           receipt_code: string
           room_number?: string | null
@@ -87,7 +121,6 @@ export type Database = {
           delivery_fee?: number
           id?: string
           item_id?: string
-          pickup_zone_id?: string
           quantity?: number
           receipt_code?: string
           room_number?: string | null
@@ -102,13 +135,6 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "menu_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "orders_pickup_zone_id_fkey"
-            columns: ["pickup_zone_id"]
-            isOneToOne: false
-            referencedRelation: "pickup_zones"
             referencedColumns: ["id"]
           },
         ]

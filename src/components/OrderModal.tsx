@@ -24,7 +24,7 @@ interface MenuItem {
   id: string;
   title: string;
   price: number;
-  image_url: string;
+  image_url: string | null;
 }
 
 interface PickupZone {
@@ -32,6 +32,13 @@ interface PickupZone {
   name: string;
   delivery_fee: number;
   requires_room_number: boolean;
+}
+
+interface DeliveryFeeTier {
+  id: string;
+  min_amount: number;
+  max_amount: number | null;
+  fee: number;
 }
 
 interface OrderModalProps {
@@ -47,6 +54,7 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
   const [contactPhone, setContactPhone] = useState("");
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [zones, setZones] = useState<PickupZone[]>([]);
+  const [deliveryTiers, setDeliveryTiers] = useState<DeliveryFeeTier[]>([]);
   const [loading, setLoading] = useState(false);
   const [receiptCode, setReceiptCode] = useState("");
   const [showReceipt, setShowReceipt] = useState(false);
@@ -54,6 +62,7 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
   useEffect(() => {
     if (open) {
       loadZones();
+      loadDeliveryTiers();
     }
   }, [open]);
 
@@ -62,9 +71,27 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
     if (data) setZones(data);
   };
 
+  const loadDeliveryTiers = async () => {
+    const { data } = await supabase
+      .from("delivery_fee_tiers")
+      .select("*")
+      .order("min_amount", { ascending: true });
+    if (data) setDeliveryTiers(data);
+  };
+
+  const calculateDeliveryFee = (orderValue: number) => {
+    const tier = deliveryTiers.find(
+      (t) =>
+        orderValue >= t.min_amount &&
+        (t.max_amount === null || orderValue <= t.max_amount)
+    );
+    return tier?.fee || 0;
+  };
+
   const selectedZone = zones.find((z) => z.id === pickupZoneId);
-  const deliveryFee = selectedZone?.delivery_fee || 0;
-  const totalAmount = item ? item.price * quantity + deliveryFee : 0;
+  const orderValue = item ? item.price * quantity : 0;
+  const deliveryFee = calculateDeliveryFee(orderValue);
+  const totalAmount = orderValue + deliveryFee;
 
   const generateReceiptCode = () => {
     const date = new Date();
@@ -112,7 +139,6 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
       receipt_code: code,
       item_id: item.id,
       quantity,
-      pickup_zone_id: pickupZoneId,
       room_number: selectedZone?.requires_room_number ? roomNumber : null,
       contact_phone: contactPhone,
       special_instructions: specialInstructions || null,
@@ -165,7 +191,7 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
             <div className="space-y-4">
               <div className="flex gap-4">
                 <img
-                  src={item.image_url}
+                  src={item.image_url || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400"}
                   alt={item.title}
                   className="w-24 h-24 object-cover rounded-lg"
                 />

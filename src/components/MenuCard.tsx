@@ -7,8 +7,10 @@ interface MenuCardProps {
   title: string;
   description: string;
   price: number;
-  imageUrl: string;
+  imageUrl: string | null;
   isNegotiable: boolean;
+  isPinned?: boolean;
+  category?: string;
   onOrderClick: () => void;
 }
 
@@ -18,26 +20,38 @@ const MenuCard = ({
   price,
   imageUrl,
   isNegotiable,
+  isPinned,
+  category,
   onOrderClick,
 }: MenuCardProps) => {
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow">
+    <Card className="overflow-hidden hover:shadow-lg transition-shadow relative">
+      {isPinned && (
+        <Badge className="absolute top-2 right-2 z-10" variant="default">
+          📌 Pinned
+        </Badge>
+      )}
       <div className="h-48 overflow-hidden">
         <img
-          src={imageUrl}
+          src={imageUrl || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400"}
           alt={title}
           className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
         />
       </div>
       <CardContent className="pt-4">
-        <div className="flex items-start justify-between mb-2">
-          <h3 className="text-xl font-semibold">{title}</h3>
+        <div className="flex flex-wrap gap-2 mb-2">
+          {category && (
+            <Badge variant={category === "snacks" ? "default" : "secondary"}>
+              {category}
+            </Badge>
+          )}
           {isNegotiable && (
-            <Badge variant="secondary" className="ml-2">
+            <Badge variant="outline">
               Negotiable
             </Badge>
           )}
         </div>
+        <h3 className="text-xl font-semibold mb-2">{title}</h3>
         <p className="text-muted-foreground text-sm mb-3">{description}</p>
         <p className="text-2xl font-bold text-primary">KES {price}</p>
       </CardContent>

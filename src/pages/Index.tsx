@@ -5,6 +5,13 @@ import Hero from "@/components/Hero";
 import MenuCard from "@/components/MenuCard";
 import OrderModal from "@/components/OrderModal";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
 
@@ -13,14 +20,20 @@ interface MenuItem {
   title: string;
   description: string;
   price: number;
-  image_url: string;
+  image_url: string | null;
   is_negotiable: boolean;
+  category: string;
+  pinned: boolean;
+  view_count: number;
+  created_at: string;
 }
 
 const Index = () => {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("pinned");
 
   useEffect(() => {
     loadMenuItems();
@@ -30,13 +43,43 @@ const Index = () => {
     const { data } = await supabase
       .from("menu_items")
       .select("*")
-      .eq("is_available", true)
-      .order("created_at", { ascending: false });
+      .eq("is_available", true);
     
     if (data) setMenuItems(data);
   };
 
-  const handleOrderClick = (item: MenuItem) => {
+  const filteredAndSortedItems = menuItems
+    .filter((item) => categoryFilter === "all" || item.category === categoryFilter)
+    .sort((a, b) => {
+      // Always show pinned items first
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+
+      // Then apply secondary sort
+      switch (sortBy) {
+        case "price-low":
+          return a.price - b.price;
+        case "price-high":
+          return b.price - a.price;
+        case "popular":
+          return b.view_count - a.view_count;
+        case "newest":
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        default:
+          return 0;
+      }
+    });
+
+  const snacks = filteredAndSortedItems.filter((item) => item.category === "snacks");
+  const food = filteredAndSortedItems.filter((item) => item.category === "food");
+
+  const handleOrderClick = async (item: MenuItem) => {
+    // Increment view count
+    await supabase
+      .from("menu_items")
+      .update({ view_count: item.view_count + 1 })
+      .eq("id", item.id);
+
     setSelectedItem(item);
     setOrderModalOpen(true);
   };
@@ -71,11 +114,38 @@ const Index = () => {
       {/* Menu Section */}
       <section id="menu" className="py-20 bg-background">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8">
             <h2 className="text-4xl font-bold mb-4">Our Menu</h2>
             <p className="text-muted-foreground text-lg">
               Fresh, delicious, and delivered fast
             </p>
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap gap-4 justify-center mb-12">
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="snacks">Snacks</SelectItem>
+                <SelectItem value="food">Food</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pinned">Pinned First</SelectItem>
+                <SelectItem value="newest">Newest</SelectItem>
+                <SelectItem value="price-low">Price: Low to High</SelectItem>
+                <SelectItem value="price-high">Price: High to Low</SelectItem>
+                <SelectItem value="popular">Popular</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {menuItems.length === 0 ? (
@@ -83,17 +153,47 @@ const Index = () => {
               <p className="text-lg">Menu items coming soon!</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {menuItems.map((item) => (
-                <MenuCard
-                  key={item.id}
-                  {...item}
-                  imageUrl={item.image_url}
-                  isNegotiable={item.is_negotiable}
-                  onOrderClick={() => handleOrderClick(item)}
-                />
-              ))}
-            </div>
+            <>
+              {/* Snacks Section */}
+              {snacks.length > 0 && (
+                <div className="mb-12">
+                  <h3 className="text-2xl font-bold mb-6">🍿 Snacks</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {snacks.map((item) => (
+                      <MenuCard
+                        key={item.id}
+                        {...item}
+                        imageUrl={item.image_url}
+                        isNegotiable={item.is_negotiable}
+                        isPinned={item.pinned}
+                        category={item.category}
+                        onOrderClick={() => handleOrderClick(item)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Food Section */}
+              {food.length > 0 && (
+                <div>
+                  <h3 className="text-2xl font-bold mb-6">🍔 Food</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {food.map((item) => (
+                      <MenuCard
+                        key={item.id}
+                        {...item}
+                        imageUrl={item.image_url}
+                        isNegotiable={item.is_negotiable}
+                        isPinned={item.pinned}
+                        category={item.category}
+                        onOrderClick={() => handleOrderClick(item)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>
