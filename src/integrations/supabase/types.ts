@@ -139,30 +139,6 @@ export type Database = {
           },
         ]
       }
-      pickup_zones: {
-        Row: {
-          created_at: string
-          delivery_fee: number
-          id: string
-          name: string
-          requires_room_number: boolean | null
-        }
-        Insert: {
-          created_at?: string
-          delivery_fee: number
-          id?: string
-          name: string
-          requires_room_number?: boolean | null
-        }
-        Update: {
-          created_at?: string
-          delivery_fee?: number
-          id?: string
-          name?: string
-          requires_room_number?: boolean | null
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
