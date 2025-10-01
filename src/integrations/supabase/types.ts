@@ -86,14 +86,46 @@ export type Database = {
         }
         Relationships: []
       }
+      order_items: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          order_id: string
+          price_at_time: number
+          quantity: number
+          subtotal: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          order_id: string
+          price_at_time: number
+          quantity: number
+          subtotal: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          order_id?: string
+          price_at_time?: number
+          quantity?: number
+          subtotal?: number
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
+          contact_name: string | null
           contact_phone: string
           created_at: string
           delivery_fee: number
           id: string
-          item_id: string
-          quantity: number
+          item_id: string | null
+          pickup_zone_id: string | null
+          quantity: number | null
           receipt_code: string
           room_number: string | null
           special_instructions: string | null
@@ -102,12 +134,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          contact_name?: string | null
           contact_phone: string
           created_at?: string
           delivery_fee: number
           id?: string
-          item_id: string
-          quantity: number
+          item_id?: string | null
+          pickup_zone_id?: string | null
+          quantity?: number | null
           receipt_code: string
           room_number?: string | null
           special_instructions?: string | null
@@ -116,12 +150,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          contact_name?: string | null
           contact_phone?: string
           created_at?: string
           delivery_fee?: number
           id?: string
-          item_id?: string
-          quantity?: number
+          item_id?: string | null
+          pickup_zone_id?: string | null
+          quantity?: number | null
           receipt_code?: string
           room_number?: string | null
           special_instructions?: string | null
@@ -138,6 +174,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pickup_zones: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          requires_room_number: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          requires_room_number?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          requires_room_number?: boolean | null
+        }
+        Relationships: []
       }
     }
     Views: {

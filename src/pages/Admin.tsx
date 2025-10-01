@@ -46,13 +46,13 @@ import logo from "@/assets/logo.png";
 interface Order {
   id: string;
   receipt_code: string;
-  quantity: number;
+  contact_name: string;
   contact_phone: string;
   room_number: string | null;
   total_amount: number;
   status: string;
   created_at: string;
-  menu_items: { title: string };
+  pickup_zones: { name: string } | null;
 }
 
 interface MenuItem {
@@ -292,12 +292,12 @@ const Admin = () => {
 
   const exportOrders = () => {
     const csv = [
-      ["Receipt Code", "Item", "Qty", "Contact", "Status", "Total", "Date"],
+      ["Receipt Code", "Name", "Contact", "Zone", "Status", "Total", "Date"],
       ...orders.map((o) => [
         o.receipt_code,
-        o.menu_items.title,
-        o.quantity,
+        o.contact_name || "",
         o.contact_phone,
+        o.pickup_zones?.name || "",
         o.status,
         o.total_amount,
         new Date(o.created_at).toLocaleDateString(),
@@ -391,9 +391,9 @@ const Admin = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Receipt</TableHead>
-                        <TableHead>Item</TableHead>
-                        <TableHead>Qty</TableHead>
+                        <TableHead>Name</TableHead>
                         <TableHead>Contact</TableHead>
+                        <TableHead>Zone</TableHead>
                         <TableHead>Total</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Actions</TableHead>
@@ -405,9 +405,9 @@ const Admin = () => {
                           <TableCell className="font-mono text-xs">
                             {order.receipt_code}
                           </TableCell>
-                          <TableCell>{order.menu_items.title}</TableCell>
-                          <TableCell>{order.quantity}</TableCell>
+                          <TableCell>{order.contact_name || "N/A"}</TableCell>
                           <TableCell>{order.contact_phone}</TableCell>
+                          <TableCell>{order.pickup_zones?.name || "N/A"}</TableCell>
                           <TableCell>KES {order.total_amount}</TableCell>
                           <TableCell>
                             <Badge

@@ -1,6 +1,9 @@
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useCart } from "@/contexts/CartContext";
+import { ShoppingCart } from "lucide-react";
+import { toast } from "sonner";
 
 interface MenuCardProps {
   id: string;
@@ -15,6 +18,7 @@ interface MenuCardProps {
 }
 
 const MenuCard = ({
+  id,
   title,
   description,
   price,
@@ -24,6 +28,12 @@ const MenuCard = ({
   category,
   onOrderClick,
 }: MenuCardProps) => {
+  const { addItem } = useCart();
+
+  const handleAddToCart = () => {
+    addItem({ id, title, price, image_url: imageUrl || null });
+    toast.success(`${title} added to cart!`);
+  };
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow relative">
       {isPinned && (
@@ -56,8 +66,9 @@ const MenuCard = ({
         <p className="text-2xl font-bold text-primary">KES {price}</p>
       </CardContent>
       <CardFooter>
-        <Button onClick={onOrderClick} className="w-full">
-          Order Now
+        <Button onClick={handleAddToCart} className="w-full gap-2">
+          <ShoppingCart className="h-4 w-4" />
+          Add to Cart
         </Button>
       </CardFooter>
     </Card>

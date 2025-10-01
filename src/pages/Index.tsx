@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Phone, Mail, MessageCircle } from "lucide-react";
 import Hero from "@/components/Hero";
 import MenuCard from "@/components/MenuCard";
-import OrderModal from "@/components/OrderModal";
+import Cart from "@/components/Cart";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -30,8 +30,6 @@ interface MenuItem {
 
 const Index = () => {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
-  const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("pinned");
 
@@ -79,9 +77,6 @@ const Index = () => {
       .from("menu_items")
       .update({ view_count: item.view_count + 1 })
       .eq("id", item.id);
-
-    setSelectedItem(item);
-    setOrderModalOpen(true);
   };
 
   return (
@@ -103,6 +98,7 @@ const Index = () => {
               Contact
             </a>
           </nav>
+          <Cart />
         </div>
       </header>
 
@@ -311,12 +307,6 @@ const Index = () => {
           </div>
         </div>
       </footer>
-
-      <OrderModal
-        open={orderModalOpen}
-        onOpenChange={setOrderModalOpen}
-        item={selectedItem}
-      />
     </div>
   );
 };

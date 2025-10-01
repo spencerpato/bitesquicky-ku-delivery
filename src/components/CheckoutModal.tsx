@@ -18,14 +18,8 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useCart } from "@/contexts/CartContext";
 import jsPDF from "jspdf";
-
-interface MenuItem {
-  id: string;
-  title: string;
-  price: number;
-  image_url: string | null;
-}
 
 interface PickupZone {
   id: string;
@@ -40,17 +34,17 @@ interface DeliveryFeeTier {
   fee: number;
 }
 
-interface OrderModalProps {
+interface CheckoutModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  item: MenuItem | null;
 }
 
-const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
-  const [quantity, setQuantity] = useState(1);
+const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
+  const { items, totalPrice, clearCart } = useCart();
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [pickupZoneId, setPickupZoneId] = useState("");
   const [roomNumber, setRoomNumber] = useState("");
-  const [contactPhone, setContactPhone] = useState("");
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [zones, setZones] = useState<PickupZone[]>([]);
   const [deliveryTiers, setDeliveryTiers] = useState<DeliveryFeeTier[]>([]);
@@ -88,9 +82,8 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
   };
 
   const selectedZone = zones.find((z) => z.id === pickupZoneId);
-  const orderValue = item ? item.price * quantity : 0;
-  const deliveryFee = calculateDeliveryFee(orderValue);
-  const totalAmount = orderValue + deliveryFee;
+  const deliveryFee = calculateDeliveryFee(totalPrice);
+  const totalAmount = totalPrice + deliveryFee;
 
   const generateReceiptCode = () => {
     const date = new Date();
@@ -101,27 +94,51 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
   };
 
   const downloadReceipt = () => {
-    if (!item || !selectedZone) return;
+    if (!selectedZone) return;
 
     const doc = new jsPDF();
     doc.setFontSize(20);
     doc.text("BitesQuicky Receipt", 105, 20, { align: "center" });
-    
+
     doc.setFontSize(12);
-    doc.text(`Receipt Code: ${receiptCode}`, 20, 40);
-    doc.text(`Item: ${item.title}`, 20, 50);
-    doc.text(`Quantity: ${quantity}`, 20, 60);
-    doc.text(`Price: KES ${item.price * quantity}`, 20, 70);
-    doc.text(`Pickup Zone: ${selectedZone.name}`, 20, 80);
-    doc.text(`Delivery Fee: KES ${deliveryFee}`, 20, 90);
-    doc.text(`Total: KES ${totalAmount}`, 20, 100);
-    doc.text(`Contact: ${contactPhone}`, 20, 110);
-    
+    let y = 40;
+    doc.text(`Receipt Code: ${receiptCode}`, 20, y);
+    y += 10;
+    doc.text(`Name: ${contactName}`, 20, y);
+    y += 10;
+    doc.text(`Phone: ${contactPhone}`, 20, y);
+    y += 10;
+    doc.text(`Pickup Zone: ${selectedZone.name}`, 20, y);
+    if (roomNumber) {
+      y += 10;
+      doc.text(`Room Number: ${roomNumber}`, 20, y);
+    }
+    y += 15;
+
+    doc.text("Items:", 20, y);
+    y += 10;
+    items.forEach((item) => {
+      doc.text(
+        `${item.quantity}x ${item.title} - KES ${item.price * item.quantity}`,
+        20,
+        y
+      );
+      y += 8;
+    });
+
+    y += 5;
+    doc.text(`Subtotal: KES ${totalPrice}`, 20, y);
+    y += 10;
+    doc.text(`Delivery Fee: KES ${deliveryFee}`, 20, y);
+    y += 10;
+    doc.setFontSize(14);
+    doc.text(`Total: KES ${totalAmount}`, 20, y);
+
     doc.save(`BitesQuicky-${receiptCode}.pdf`);
   };
 
   const handleSubmit = async () => {
-    if (!item || !pickupZoneId || !contactPhone) {
+    if (!contactName || !pickupZoneId || !contactPhone) {
       toast.error("Please fill all required fields");
       return;
     }
@@ -131,34 +148,69 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
       return;
     }
 
+    if (items.length === 0) {
+      toast.error("Your cart is empty");
+      return;
+    }
+
     setLoading(true);
     const code = generateReceiptCode();
 
-    const { error } = await supabase.from("orders").insert({
-      receipt_code: code,
+    // Create order
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .insert({
+        receipt_code: code,
+        contact_name: contactName,
+        contact_phone: contactPhone,
+        pickup_zone_id: pickupZoneId,
+        room_number: selectedZone?.requires_room_number ? roomNumber : null,
+        special_instructions: specialInstructions || null,
+        delivery_fee: deliveryFee,
+        total_amount: totalAmount,
+        item_id: null,
+        quantity: null,
+      })
+      .select()
+      .single();
+
+    if (orderError || !order) {
+      setLoading(false);
+      toast.error("Failed to place order");
+      return;
+    }
+
+    // Create order items
+    const orderItems = items.map((item) => ({
+      order_id: order.id,
       item_id: item.id,
-      quantity,
-      room_number: selectedZone?.requires_room_number ? roomNumber : null,
-      contact_phone: contactPhone,
-      special_instructions: specialInstructions || null,
-      delivery_fee: deliveryFee,
-      total_amount: totalAmount,
-    });
+      quantity: item.quantity,
+      price_at_time: item.price,
+      subtotal: item.price * item.quantity,
+    }));
+
+    const { error: itemsError } = await supabase
+      .from("order_items")
+      .insert(orderItems);
 
     setLoading(false);
 
-    if (error) {
-      toast.error("Failed to place order");
+    if (itemsError) {
+      toast.error("Failed to save order items");
       return;
     }
 
     setReceiptCode(code);
     setShowReceipt(true);
+    clearCart();
     toast.success("Order placed successfully!");
   };
 
   const sendViaWhatsApp = () => {
-    const message = `Hi! I've placed an order on BitesQuicky.\n\nReceipt Code: ${receiptCode}\nItem: ${item?.title}\nQuantity: ${quantity}\nTotal: KES ${totalAmount}\nContact: ${contactPhone}`;
+    const itemsList = items
+      .map((item) => `${item.quantity}x ${item.title}`)
+      .join(", ");
+    const message = `Hi! I've placed an order on BitesQuicky.\n\nReceipt Code: ${receiptCode}\nName: ${contactName}\nItems: ${itemsList}\nTotal: KES ${totalAmount}\nContact: ${contactPhone}`;
     window.open(
       `https://wa.me/254114097160?text=${encodeURIComponent(message)}`,
       "_blank"
@@ -166,17 +218,15 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
   };
 
   const handleClose = () => {
-    setQuantity(1);
+    setContactName("");
+    setContactPhone("");
     setPickupZoneId("");
     setRoomNumber("");
-    setContactPhone("");
     setSpecialInstructions("");
     setShowReceipt(false);
     setReceiptCode("");
     onOpenChange(false);
   };
-
-  if (!item) return null;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -184,31 +234,38 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
         {!showReceipt ? (
           <>
             <DialogHeader>
-              <DialogTitle>Order {item.title}</DialogTitle>
+              <DialogTitle>Checkout</DialogTitle>
             </DialogHeader>
 
             <div className="space-y-4">
-              <div className="flex gap-4">
-                <img
-                  src={item.image_url || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400"}
-                  alt={item.title}
-                  className="w-24 h-24 object-cover rounded-lg"
-                />
-                <div>
-                  <h3 className="font-semibold">{item.title}</h3>
-                  <p className="text-2xl font-bold text-primary">
-                    KES {item.price}
-                  </p>
-                </div>
+              <div className="p-4 bg-muted/30 rounded-lg space-y-2 max-h-48 overflow-y-auto">
+                {items.map((item) => (
+                  <div key={item.id} className="flex justify-between text-sm">
+                    <span>
+                      {item.quantity}x {item.title}
+                    </span>
+                    <span className="font-semibold">
+                      KES {item.price * item.quantity}
+                    </span>
+                  </div>
+                ))}
               </div>
 
               <div>
-                <Label>Quantity</Label>
+                <Label>Full Name</Label>
                 <Input
-                  type="number"
-                  min="1"
-                  value={quantity}
-                  onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  placeholder="John Doe"
+                />
+              </div>
+
+              <div>
+                <Label>Phone Number</Label>
+                <Input
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  placeholder="+254..."
                 />
               </div>
 
@@ -240,15 +297,6 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
               )}
 
               <div>
-                <Label>Contact Phone</Label>
-                <Input
-                  value={contactPhone}
-                  onChange={(e) => setContactPhone(e.target.value)}
-                  placeholder="+254..."
-                />
-              </div>
-
-              <div>
                 <Label>Special Instructions (Optional)</Label>
                 <Textarea
                   value={specialInstructions}
@@ -260,9 +308,7 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
               <div className="p-4 bg-muted rounded-lg space-y-2">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
-                  <span className="font-semibold">
-                    KES {item.price * quantity}
-                  </span>
+                  <span className="font-semibold">KES {totalPrice}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Delivery Fee:</span>
@@ -301,10 +347,16 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
 
               <div className="text-left space-y-2">
                 <p>
-                  <strong>Item:</strong> {item.title}
+                  <strong>Name:</strong> {contactName}
                 </p>
                 <p>
-                  <strong>Quantity:</strong> {quantity}
+                  <strong>Items:</strong> {items.length} item(s)
+                </p>
+                <p>
+                  <strong>Subtotal:</strong> KES {totalPrice}
+                </p>
+                <p>
+                  <strong>Delivery Fee:</strong> KES {deliveryFee}
                 </p>
                 <p>
                   <strong>Total:</strong> KES {totalAmount}
@@ -318,12 +370,20 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
                 <Button onClick={sendViaWhatsApp} className="flex-1">
                   Send via WhatsApp
                 </Button>
-                <Button onClick={downloadReceipt} variant="outline" className="flex-1">
+                <Button
+                  onClick={downloadReceipt}
+                  variant="outline"
+                  className="flex-1"
+                >
                   Download PDF
                 </Button>
               </div>
 
-              <Button onClick={handleClose} variant="secondary" className="w-full">
+              <Button
+                onClick={handleClose}
+                variant="secondary"
+                className="w-full"
+              >
                 Close
               </Button>
             </div>
@@ -334,4 +394,4 @@ const OrderModal = ({ open, onOpenChange, item }: OrderModalProps) => {
   );
 };
 
-export default OrderModal;
+export default CheckoutModal;
