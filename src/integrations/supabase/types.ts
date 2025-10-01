@@ -14,7 +14,129 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      menu_items: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          is_available: boolean | null
+          is_negotiable: boolean | null
+          price: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_available?: boolean | null
+          is_negotiable?: boolean | null
+          price: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_available?: boolean | null
+          is_negotiable?: boolean | null
+          price?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      orders: {
+        Row: {
+          contact_phone: string
+          created_at: string
+          delivery_fee: number
+          id: string
+          item_id: string
+          pickup_zone_id: string
+          quantity: number
+          receipt_code: string
+          room_number: string | null
+          special_instructions: string | null
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          contact_phone: string
+          created_at?: string
+          delivery_fee: number
+          id?: string
+          item_id: string
+          pickup_zone_id: string
+          quantity: number
+          receipt_code: string
+          room_number?: string | null
+          special_instructions?: string | null
+          status?: string
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          contact_phone?: string
+          created_at?: string
+          delivery_fee?: number
+          id?: string
+          item_id?: string
+          pickup_zone_id?: string
+          quantity?: number
+          receipt_code?: string
+          room_number?: string | null
+          special_instructions?: string | null
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_pickup_zone_id_fkey"
+            columns: ["pickup_zone_id"]
+            isOneToOne: false
+            referencedRelation: "pickup_zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pickup_zones: {
+        Row: {
+          created_at: string
+          delivery_fee: number
+          id: string
+          name: string
+          requires_room_number: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          delivery_fee: number
+          id?: string
+          name: string
+          requires_room_number?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          delivery_fee?: number
+          id?: string
+          name?: string
+          requires_room_number?: boolean | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
