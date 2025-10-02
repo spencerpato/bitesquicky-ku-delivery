@@ -96,43 +96,140 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
   const downloadReceipt = () => {
     if (!selectedZone) return;
 
-    const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.text("BitesQuicky Receipt", 105, 20, { align: "center" });
-
-    doc.setFontSize(12);
-    let y = 40;
-    doc.text(`Receipt Code: ${receiptCode}`, 20, y);
-    y += 10;
-    doc.text(`Name: ${contactName}`, 20, y);
-    y += 10;
-    doc.text(`Phone: ${contactPhone}`, 20, y);
-    y += 10;
-    doc.text(`Pickup Zone: ${selectedZone.name}`, 20, y);
-    if (roomNumber) {
-      y += 10;
-      doc.text(`Room Number: ${roomNumber}`, 20, y);
-    }
-    y += 15;
-
-    doc.text("Items:", 20, y);
-    y += 10;
-    items.forEach((item) => {
-      doc.text(
-        `${item.quantity}x ${item.title} - KES ${item.price * item.quantity}`,
-        20,
-        y
-      );
-      y += 8;
+    // Thermal receipt size: 80mm width (about 3 inches)
+    const doc = new jsPDF({
+      unit: 'mm',
+      format: [80, 297] // 80mm width, auto height
     });
 
+    const centerX = 40;
+    let y = 10;
+
+    // Header
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text("BITESQUICKY", centerX, y, { align: "center" });
+    y += 6;
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text("Fast Campus Food Delivery", centerX, y, { align: "center" });
+    y += 4;
+    doc.text("Tel: +254 114 097 160", centerX, y, { align: "center" });
+    y += 6;
+
+    // Date and Time
+    const orderDate = new Date();
+    const dateStr = orderDate.toLocaleDateString('en-GB');
+    const timeStr = orderDate.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    doc.setFontSize(7);
+    doc.text(`Date: ${dateStr}`, 5, y);
+    doc.text(`Time: ${timeStr}`, 55, y, { align: "right" });
+    y += 6;
+
+    // Divider
+    doc.text("========================================", centerX, y, { align: "center" });
     y += 5;
-    doc.text(`Subtotal: KES ${totalPrice}`, 20, y);
-    y += 10;
-    doc.text(`Delivery Fee: KES ${deliveryFee}`, 20, y);
-    y += 10;
-    doc.setFontSize(14);
-    doc.text(`Total: KES ${totalAmount}`, 20, y);
+
+    // Receipt Code
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Receipt: ${receiptCode}`, centerX, y, { align: "center" });
+    y += 6;
+
+    // Customer Details
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Customer: ${contactName}`, 5, y);
+    y += 4;
+    doc.text(`Phone: ${contactPhone}`, 5, y);
+    y += 4;
+    doc.text(`Pickup: ${selectedZone.name}`, 5, y);
+    y += 4;
+    
+    if (roomNumber) {
+      doc.text(`Room: ${roomNumber}`, 5, y);
+      y += 4;
+    }
+
+    if (specialInstructions) {
+      doc.setFontSize(7);
+      doc.text(`Note: ${specialInstructions}`, 5, y);
+      y += 4;
+    }
+
+    y += 2;
+    doc.text("========================================", centerX, y, { align: "center" });
+    y += 5;
+
+    // Items Header
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text("ITEM", 5, y);
+    doc.text("QTY", 50, y);
+    doc.text("AMOUNT", 75, y, { align: "right" });
+    y += 4;
+    doc.setFont('helvetica', 'normal');
+    doc.text("----------------------------------------", centerX, y, { align: "center" });
+    y += 4;
+
+    // Items
+    doc.setFontSize(7);
+    items.forEach((item) => {
+      const itemTotal = item.price * item.quantity;
+      
+      // Item name (wrapped if too long)
+      const itemName = item.title.length > 25 ? item.title.substring(0, 25) + '...' : item.title;
+      doc.text(itemName, 5, y);
+      doc.text(`${item.quantity}`, 52, y);
+      doc.text(`${itemTotal}`, 75, y, { align: "right" });
+      y += 4;
+      
+      // Show unit price
+      doc.setFontSize(6);
+      doc.text(`@ KES ${item.price} each`, 5, y);
+      doc.setFontSize(7);
+      y += 4;
+    });
+
+    y += 1;
+    doc.text("========================================", centerX, y, { align: "center" });
+    y += 5;
+
+    // Totals
+    doc.setFontSize(8);
+    doc.text("Subtotal:", 5, y);
+    doc.text(`KES ${totalPrice}`, 75, y, { align: "right" });
+    y += 5;
+    
+    doc.text("Delivery Fee:", 5, y);
+    doc.text(`KES ${deliveryFee}`, 75, y, { align: "right" });
+    y += 5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text("TOTAL:", 5, y);
+    doc.text(`KES ${totalAmount}`, 75, y, { align: "right" });
+    y += 7;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.text("========================================", centerX, y, { align: "center" });
+    y += 5;
+
+    // Footer
+    doc.setFontSize(7);
+    doc.text("Thank you for your order!", centerX, y, { align: "center" });
+    y += 4;
+    doc.text("Please keep this receipt for reference", centerX, y, { align: "center" });
+    y += 4;
+    doc.setFontSize(6);
+    doc.text("Order queries: WhatsApp +254 114 097 160", centerX, y, { align: "center" });
 
     doc.save(`BitesQuicky-${receiptCode}.pdf`);
   };
@@ -335,35 +432,86 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
               <DialogTitle>Order Confirmed! 🎉</DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-4 text-center">
-              <div className="p-6 bg-secondary/10 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-2">
-                  Receipt Code
-                </p>
-                <p className="text-2xl font-bold text-primary">
-                  {receiptCode}
-                </p>
-              </div>
+            <div className="space-y-4">
+              {/* Receipt Preview */}
+              <div className="bg-white text-black p-4 rounded-lg border-2 border-dashed border-muted font-mono text-xs">
+                <div className="text-center mb-3">
+                  <p className="text-base font-bold">BITESQUICKY</p>
+                  <p className="text-[10px]">Fast Campus Food Delivery</p>
+                  <p className="text-[10px]">Tel: +254 114 097 160</p>
+                </div>
 
-              <div className="text-left space-y-2">
-                <p>
-                  <strong>Name:</strong> {contactName}
-                </p>
-                <p>
-                  <strong>Items:</strong> {items.length} item(s)
-                </p>
-                <p>
-                  <strong>Subtotal:</strong> KES {totalPrice}
-                </p>
-                <p>
-                  <strong>Delivery Fee:</strong> KES {deliveryFee}
-                </p>
-                <p>
-                  <strong>Total:</strong> KES {totalAmount}
-                </p>
-                <p>
-                  <strong>Contact:</strong> {contactPhone}
-                </p>
+                <div className="flex justify-between text-[10px] mb-2">
+                  <span>Date: {new Date().toLocaleDateString('en-GB')}</span>
+                  <span>Time: {new Date().toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: true 
+                  })}</span>
+                </div>
+
+                <div className="border-t border-b border-dashed border-gray-400 py-2 my-2">
+                  <p className="text-center font-bold text-sm">Receipt: {receiptCode}</p>
+                </div>
+
+                <div className="space-y-1 mb-2 text-[10px]">
+                  <p>Customer: {contactName}</p>
+                  <p>Phone: {contactPhone}</p>
+                  <p>Pickup: {selectedZone?.name}</p>
+                  {roomNumber && <p>Room: {roomNumber}</p>}
+                  {specialInstructions && (
+                    <p className="text-[9px]">Note: {specialInstructions}</p>
+                  )}
+                </div>
+
+                <div className="border-t border-dashed border-gray-400 my-2"></div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between font-bold text-[10px]">
+                    <span>ITEM</span>
+                    <span>QTY</span>
+                    <span>AMOUNT</span>
+                  </div>
+                  <div className="border-t border-dotted border-gray-300"></div>
+                  
+                  {items.map((item, idx) => (
+                    <div key={idx} className="space-y-1">
+                      <div className="flex justify-between">
+                        <span className="flex-1 pr-2 truncate">{item.title}</span>
+                        <span className="w-8 text-center">{item.quantity}</span>
+                        <span className="w-16 text-right">{item.price * item.quantity}</span>
+                      </div>
+                      <div className="text-[9px] text-gray-600 pl-1">
+                        @ KES {item.price} each
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-dashed border-gray-400 my-2"></div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>KES {totalPrice}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Delivery Fee:</span>
+                    <span>KES {deliveryFee}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-sm border-t border-gray-400 pt-1 mt-1">
+                    <span>TOTAL:</span>
+                    <span>KES {totalAmount}</span>
+                  </div>
+                </div>
+
+                <div className="border-t border-dashed border-gray-400 my-2"></div>
+
+                <div className="text-center space-y-1 text-[10px]">
+                  <p>Thank you for your order!</p>
+                  <p className="text-[9px]">Keep this receipt for reference</p>
+                  <p className="text-[9px]">Queries: WhatsApp +254 114 097 160</p>
+                </div>
               </div>
 
               <div className="flex gap-2">
