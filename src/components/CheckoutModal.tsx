@@ -39,6 +39,13 @@ interface CheckoutModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface OrderItem {
+  id: string;
+  title: string;
+  price: number;
+  quantity: number;
+}
+
 const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
   const { items, totalPrice, clearCart } = useCart();
   const [contactName, setContactName] = useState("");
@@ -51,6 +58,10 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
   const [loading, setLoading] = useState(false);
   const [receiptCode, setReceiptCode] = useState("");
   const [showReceipt, setShowReceipt] = useState(false);
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [orderSubtotal, setOrderSubtotal] = useState(0);
+  const [orderDeliveryFee, setOrderDeliveryFee] = useState(0);
+  const [orderTotal, setOrderTotal] = useState(0);
 
   useEffect(() => {
     if (open) {
@@ -110,7 +121,7 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
     doc.setFont('helvetica', 'bold');
     doc.text("BITESQUICKY", centerX, y, { align: "center" });
     y += 6;
-    
+
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.text("Fast Campus Food Delivery", centerX, y, { align: "center" });
@@ -121,12 +132,12 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
     // Date and Time
     const orderDate = new Date();
     const dateStr = orderDate.toLocaleDateString('en-GB');
-    const timeStr = orderDate.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
+    const timeStr = orderDate.toLocaleTimeString('en-US', {
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: true 
+      hour12: true
     });
-    
+
     doc.setFontSize(7);
     doc.text(`Date: ${dateStr}`, 5, y);
     doc.text(`Time: ${timeStr}`, 55, y, { align: "right" });
@@ -151,7 +162,7 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
     y += 4;
     doc.text(`Pickup: ${selectedZone.name}`, 5, y);
     y += 4;
-    
+
     if (roomNumber) {
       doc.text(`Room: ${roomNumber}`, 5, y);
       y += 4;
@@ -180,16 +191,16 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
 
     // Items
     doc.setFontSize(7);
-    items.forEach((item) => {
+    orderItems.forEach((item) => {
       const itemTotal = item.price * item.quantity;
-      
+
       // Item name (wrapped if too long)
       const itemName = item.title.length > 25 ? item.title.substring(0, 25) + '...' : item.title;
       doc.text(itemName, 5, y);
       doc.text(`${item.quantity}`, 52, y);
       doc.text(`${itemTotal}`, 75, y, { align: "right" });
       y += 4;
-      
+
       // Show unit price
       doc.setFontSize(6);
       doc.text(`@ KES ${item.price} each`, 5, y);
@@ -204,17 +215,17 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
     // Totals
     doc.setFontSize(8);
     doc.text("Subtotal:", 5, y);
-    doc.text(`KES ${totalPrice}`, 75, y, { align: "right" });
+    doc.text(`KES ${orderSubtotal}`, 75, y, { align: "right" });
     y += 5;
-    
+
     doc.text("Delivery Fee:", 5, y);
-    doc.text(`KES ${deliveryFee}`, 75, y, { align: "right" });
+    doc.text(`KES ${orderDeliveryFee}`, 75, y, { align: "right" });
     y += 5;
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.text("TOTAL:", 5, y);
-    doc.text(`KES ${totalAmount}`, 75, y, { align: "right" });
+    doc.text(`KES ${orderTotal}`, 75, y, { align: "right" });
     y += 7;
 
     doc.setFont('helvetica', 'normal');
@@ -297,6 +308,15 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
       return;
     }
 
+    setOrderItems(items.map(item => ({
+      id: item.id,
+      title: item.title,
+      price: item.price,
+      quantity: item.quantity
+    })));
+    setOrderSubtotal(totalPrice);
+    setOrderDeliveryFee(deliveryFee);
+    setOrderTotal(totalAmount);
     setReceiptCode(code);
     setShowReceipt(true);
     clearCart();
@@ -304,10 +324,10 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
   };
 
   const sendViaWhatsApp = () => {
-    const itemsList = items
+    const itemsList = orderItems
       .map((item) => `${item.quantity}x ${item.title}`)
       .join(", ");
-    const message = `Hi! I've placed an order on BitesQuicky.\n\nReceipt Code: ${receiptCode}\nName: ${contactName}\nItems: ${itemsList}\nTotal: KES ${totalAmount}\nContact: ${contactPhone}`;
+    const message = `Hi! I've placed an order on BitesQuicky.\n\nReceipt Code: ${receiptCode}\nName: ${contactName}\nItems: ${itemsList}\nTotal: KES ${orderTotal}\nContact: ${contactPhone}`;
     window.open(
       `https://wa.me/254114097160?text=${encodeURIComponent(message)}`,
       "_blank"
@@ -322,6 +342,10 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
     setSpecialInstructions("");
     setShowReceipt(false);
     setReceiptCode("");
+    setOrderItems([]);
+    setOrderSubtotal(0);
+    setOrderDeliveryFee(0);
+    setOrderTotal(0);
     onOpenChange(false);
   };
 
@@ -473,8 +497,8 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
                     <span>AMOUNT</span>
                   </div>
                   <div className="border-t border-dotted border-gray-300"></div>
-                  
-                  {items.map((item, idx) => (
+
+                  {orderItems.map((item, idx) => (
                     <div key={idx} className="space-y-1">
                       <div className="flex justify-between">
                         <span className="flex-1 pr-2 truncate">{item.title}</span>
@@ -493,15 +517,15 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
                 <div className="space-y-1">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
-                    <span>KES {totalPrice}</span>
+                    <span>KES {orderSubtotal}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Delivery Fee:</span>
-                    <span>KES {deliveryFee}</span>
+                    <span>KES {orderDeliveryFee}</span>
                   </div>
                   <div className="flex justify-between font-bold text-sm border-t border-gray-400 pt-1 mt-1">
                     <span>TOTAL:</span>
-                    <span>KES {totalAmount}</span>
+                    <span>KES {orderTotal}</span>
                   </div>
                 </div>
 
