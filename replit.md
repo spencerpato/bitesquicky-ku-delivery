@@ -57,13 +57,17 @@ src/
 - Dev: `npm run dev`
 
 ## Recent Changes
-- **2025-10-02**: Successfully imported project from GitHub and configured for Replit environment
+- **2025-10-02**: Fresh GitHub import setup completed for Replit environment
   - Installed all npm dependencies (417 packages)
-  - Vite config already properly configured to bind to 0.0.0.0:5000 with allowedHosts: true
+  - Fixed Supabase security issue: moved hardcoded credentials to .env file with environment variables
+  - Updated Supabase client to use `import.meta.env.VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`
+  - Updated .gitignore to exclude .env files and environment-specific files
+  - Vite config already properly configured to bind to 0.0.0.0:5000 with allowedHosts: true for Replit proxy
   - Workflow "Start application" running successfully on port 5000
-  - Deployment configured for autoscale with build and preview commands
-  - Supabase integration already set up with credentials
-  - Application tested and verified working correctly
+  - Deployment configured for autoscale deployment target with:
+    * Build: `npm run build`
+    * Run: `npm run preview`
+  - Application tested and verified working correctly with homepage displaying properly
 
 - **2025-10-02**: Enhanced admin dashboard with missing features
   - Added real-time order updates using Supabase subscriptions - new orders appear immediately without refresh
