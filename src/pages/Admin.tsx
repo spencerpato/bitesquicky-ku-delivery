@@ -18,6 +18,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -83,6 +93,8 @@ const Admin = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [orderDetailsOpen, setOrderDetailsOpen] = useState(false);
+  const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     const isAuth = localStorage.getItem("adminAuth");
@@ -198,6 +210,42 @@ const Admin = () => {
       });
 
       toast.success(`Order status updated to ${status}!`);
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      toast.error("An unexpected error occurred");
+    }
+  };
+
+  const deleteOrder = async () => {
+    if (!deleteOrderId) return;
+
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .delete()
+        .eq("id", deleteOrderId);
+
+      if (error) {
+        console.error("Error deleting order:", error);
+        toast.error(`Failed to delete order: ${error.message}`);
+        return;
+      }
+
+      // Update local state
+      setOrders(prevOrders => {
+        const updatedOrders = prevOrders.filter(order => order.id !== deleteOrderId);
+        
+        // Recalculate stats
+        const pending = updatedOrders.filter((o) => o.status === "pending").length;
+        const inProgress = updatedOrders.filter((o) => o.status === "preparing").length;
+        const delivered = updatedOrders.filter((o) => o.status === "delivered").length;
+        setStats({ pending, inProgress, delivered });
+        
+        return updatedOrders;
+      });
+
+      toast.success("Order deleted successfully!");
+      setDeleteOrderId(null);
     } catch (err) {
       console.error("Unexpected error:", err);
       toast.error("An unexpected error occurred");
@@ -661,6 +709,16 @@ const Admin = () => {
                 </Button>
               </CardHeader>
               <CardContent>
+                {/* Search Bar */}
+                <div className="mb-4">
+                  <Input
+                    placeholder="Search by Order ID or Phone Number..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="max-w-md"
+                  />
+                </div>
+
                 {orders.length === 0 ? (
                   <div className="text-center py-12">
                     <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -684,7 +742,16 @@ const Admin = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {orders.map((order) => (
+                        {orders
+                          .filter((order) => {
+                            if (!searchQuery) return true;
+                            const query = searchQuery.toLowerCase();
+                            return (
+                              order.receipt_code.toLowerCase().includes(query) ||
+                              order.contact_phone.includes(query)
+                            );
+                          })
+                          .map((order) => (
                           <TableRow key={order.id}>
                           <TableCell className="font-mono text-xs">
                             {order.receipt_code}
@@ -739,6 +806,14 @@ const Admin = () => {
                                 data-testid={`button-download-receipt-${order.id}`}
                               >
                                 <Download className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setDeleteOrderId(order.id)}
+                                data-testid={`button-delete-order-${order.id}`}
+                              >
+                                <Trash2 className="h-3 w-3 text-destructive" />
                               </Button>
                             </div>
                           </TableCell>
@@ -1083,6 +1158,23 @@ const Admin = () => {
         open={orderDetailsOpen}
         onOpenChange={setOrderDetailsOpen}
       />
+
+      <AlertDialog open={!!deleteOrderId} onOpenChange={() => setDeleteOrderId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Order</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete this order? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteOrder} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

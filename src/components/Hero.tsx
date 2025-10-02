@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Package } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   Carousel,
   CarouselContent,
@@ -9,6 +10,7 @@ import Autoplay from "embla-carousel-autoplay";
 import { useRef } from "react";
 
 const Hero = () => {
+  const navigate = useNavigate();
   const plugin = useRef(
     Autoplay({ delay: 3000, stopOnInteraction: false })
   );
@@ -58,13 +60,24 @@ const Hero = () => {
         <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-2xl mx-auto">
           Skip the queue. Add just Ksh 5, 10, or 15 depending on your pickup zone.
         </p>
-        <Button
-          size="lg"
-          onClick={scrollToMenu}
-          className="text-lg px-8 py-6 rounded-full shadow-lg hover:shadow-xl transition-all"
-        >
-          Order Now <ChevronDown className="ml-2 h-5 w-5" />
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <Button
+            size="lg"
+            onClick={scrollToMenu}
+            className="text-lg px-8 py-6 rounded-full shadow-lg hover:shadow-xl transition-all"
+          >
+            Order Now <ChevronDown className="ml-2 h-5 w-5" />
+          </Button>
+          <Button
+            size="lg"
+            variant="secondary"
+            onClick={() => navigate("/trace-order")}
+            className="text-lg px-8 py-6 rounded-full shadow-lg hover:shadow-xl transition-all"
+          >
+            <Package className="mr-2 h-5 w-5" />
+            Trace My Order
+          </Button>
+        </div>
         <div className="mt-8 text-lg text-muted-foreground">
           🍴 Try our mouth-watering delicacies
         </div>
