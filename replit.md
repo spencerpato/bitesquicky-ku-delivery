@@ -89,5 +89,24 @@ src/
     * Missing order_items table and related policies (prevents receipt generation with items)
   - **ACTION REQUIRED**: User needs to apply the SQL migration via Supabase dashboard to enable admin features
 
+- **2025-10-02**: Enhanced admin dashboard error handling and receipt generation
+  - Improved `updateOrderStatus` function with:
+    * Comprehensive error handling for RLS policy issues
+    * Fixed critical bug: stats now recalculate from fresh state (not stale) for immediate UI updates
+    * Better user feedback with descriptive toast messages
+    * Proper guidance when database migration is needed
+  - Enhanced `downloadOrderReceipt` functionality:
+    * Fetches complete order data with pickup zones relationship
+    * Includes order items with proper joins
+    * Matches customer receipt format exactly (thermal 80mm width, logo, complete details)
+    * Shows order status and proper zone names
+    * Comprehensive error handling with fallbacks for missing data
+  - Improved `OrderDetailsModal` with:
+    * Enhanced receipt download with same format as admin receipts
+    * Better error messages and user guidance
+    * Proper toast notifications for all operations
+  - All admin features now have robust error handling and guide users to apply the migration when needed
+  - Application compiles successfully and is ready for database migration
+
 ## User Preferences
 None specified yet.
