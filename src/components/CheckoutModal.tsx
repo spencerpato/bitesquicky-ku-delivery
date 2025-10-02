@@ -301,7 +301,7 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
                 <Textarea
                   value={specialInstructions}
                   onChange={(e) => setSpecialInstructions(e.target.value)}
-                  placeholder="Any special requests?"
+                  placeholder="e.g., Extra cheese, vanilla flavor, no onions, etc."
                 />
               </div>
 
