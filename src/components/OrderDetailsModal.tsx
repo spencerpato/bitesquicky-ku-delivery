@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import jsPDF from "jspdf";
 import { Loader as Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { LOGO_BASE64 } from "@/lib/logo";
 
 interface OrderItem {
   id: string;
@@ -175,10 +176,12 @@ const OrderDetailsModal = ({ orderId, open, onOpenChange }: OrderDetailsModalPro
       const centerX = 40;
       let y = 10;
 
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text("BITESQUICKY", centerX, y, { align: "center" });
-      y += 6;
+      // Header - Logo
+      const logoWidth = 50;
+      const logoHeight = 15;
+      const logoX = centerX - (logoWidth / 2);
+      doc.addImage(LOGO_BASE64, 'PNG', logoX, y, logoWidth, logoHeight);
+      y += logoHeight + 2;
 
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');

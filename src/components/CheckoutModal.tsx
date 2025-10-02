@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useCart } from "@/contexts/CartContext";
 import jsPDF from "jspdf";
+import { LOGO_BASE64 } from "@/lib/logo";
 
 interface PickupZone {
   id: string;
@@ -116,11 +117,12 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
     const centerX = 40;
     let y = 10;
 
-    // Header
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text("BITESQUICKY", centerX, y, { align: "center" });
-    y += 6;
+    // Header - Logo
+    const logoWidth = 50;
+    const logoHeight = 15;
+    const logoX = centerX - (logoWidth / 2);
+    doc.addImage(LOGO_BASE64, 'PNG', logoX, y, logoWidth, logoHeight);
+    y += logoHeight + 2;
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
@@ -468,7 +470,7 @@ const CheckoutModal = ({ open, onOpenChange }: CheckoutModalProps) => {
               {/* Receipt Preview */}
               <div className="bg-white text-black p-4 rounded-lg border-2 border-dashed border-muted font-mono text-xs">
                 <div className="text-center mb-3">
-                  <p className="text-base font-bold">BITESQUICKY</p>
+                  <img src={LOGO_BASE64} alt="BitesQuicky" className="h-8 mx-auto mb-2" />
                   <p className="text-[10px]">Fast Campus Food Delivery</p>
                   <p className="text-[10px]">Tel: +254 114 097 160</p>
                 </div>

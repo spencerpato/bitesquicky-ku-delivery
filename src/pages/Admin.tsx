@@ -37,6 +37,7 @@ import logo from "@/assets/logo.png";
 import NotificationBell from "@/components/NotificationBell";
 import OrderDetailsModal from "@/components/OrderDetailsModal";
 import jsPDF from "jspdf";
+import { LOGO_BASE64 } from "@/lib/logo";
 
 interface Order {
   id: string;
@@ -427,10 +428,12 @@ const Admin = () => {
       const centerX = 40;
       let y = 10;
 
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text("BITESQUICKY", centerX, y, { align: "center" });
-      y += 6;
+      // Header - Logo
+      const logoWidth = 50;
+      const logoHeight = 15;
+      const logoX = centerX - (logoWidth / 2);
+      doc.addImage(LOGO_BASE64, 'PNG', logoX, y, logoWidth, logoHeight);
+      y += logoHeight + 2;
 
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
