@@ -13,9 +13,9 @@ BitesQuicky is a food and snacks delivery application for Karatina University st
 
 ## Key Features
 - User-facing storefront with menu browsing and cart functionality
-- Order placement and tracking
-- Admin login and dashboard
-- Order management system
+- Order placement and tracking with customer order tracing page
+- Admin login and dashboard with order search and delete capabilities
+- Order management system with real-time updates
 - Real-time notifications
 - Responsive design with dark mode support
 
@@ -38,6 +38,7 @@ src/
 │   ├── Index.tsx
 │   ├── Admin.tsx
 │   ├── AdminLogin.tsx
+│   ├── TraceOrder.tsx
 │   └── NotFound.tsx
 ├── lib/            # Utility functions
 ├── App.tsx         # Main app component with routing
@@ -122,6 +123,42 @@ src/
     * Proper toast notifications for all operations
   - All admin features now have robust error handling and guide users to apply the migration when needed
   - Application compiles successfully and is ready for database migration
+
+- **2025-10-02**: Logo branding implemented across all receipts
+  - Created `src/lib/logo.ts` with base64-encoded logo for reliable embedding
+  - Updated all receipt generation (customer checkout, admin, order details) to use logo
+  - Logo displays in both PDF downloads (50mm × 15mm) and on-screen previews
+  - Production-compatible implementation using data URLs
+
+- **2025-10-02**: Implemented 5 new customer and admin features
+  - **Delete Order (Admin Dashboard)**:
+    * Added delete button with trash icon next to each order in admin table
+    * Implemented confirmation dialog using AlertDialog component
+    * Deletes orders from Supabase and updates local state with stats recalculation
+    * Proper error handling with toast notifications
+  - **Trace Order Page** (`/trace-order`):
+    * Created new customer-facing page for order tracking
+    * Allows customers to search orders by phone number
+    * Displays all orders with status badges (pending, preparing, delivered, cancelled)
+    * Includes "View Details" button that opens OrderDetailsModal
+    * Shows "No Orders Found" state when applicable
+    * "Back to Home" navigation button
+  - **Search Orders (Admin Dashboard)**:
+    * Added real-time search input to filter orders
+    * Searches by Order ID (receipt code) or Phone Number
+    * Client-side filtering for instant results
+    * No additional Supabase queries needed
+  - **Trace My Order CTA (Homepage)**:
+    * Added secondary "Trace My Order" button on hero section
+    * Styled with secondary variant (green) and Package icon
+    * Positioned next to "Order Now" button
+    * Navigates to `/trace-order` page
+  - **Full Backend Integration**:
+    * All features connected to Supabase backend
+    * Proper error handling and user feedback
+    * State management with real-time updates
+    * Routing configured in App.tsx
+  - All features tested and architect-reviewed
 
 ## User Preferences
 None specified yet.
