@@ -40,8 +40,12 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Eye,
+  Download,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
+import NotificationBell from "@/components/NotificationBell";
+import OrderDetailsModal from "@/components/OrderDetailsModal";
 
 interface Order {
   id: string;
@@ -85,6 +89,8 @@ const Admin = () => {
   const [editingTier, setEditingTier] = useState<DeliveryFeeTier | null>(null);
   const [tierDialogOpen, setTierDialogOpen] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [orderDetailsOpen, setOrderDetailsOpen] = useState(false);
 
   useEffect(() => {
     const isAuth = localStorage.getItem("adminAuth");
@@ -102,17 +108,16 @@ const Admin = () => {
       .from("orders")
       .select(`
         *,
-        menu_items(title)
+        pickup_zones(name)
       `)
       .order("created_at", { ascending: false });
 
     if (ordersData) {
       setOrders(ordersData as any);
-      setStats({
-        pending: ordersData.filter((o) => o.status === "pending").length,
-        inProgress: ordersData.filter((o) => o.status === "in_progress").length,
-        delivered: ordersData.filter((o) => o.status === "delivered").length,
-      });
+      const pending = ordersData.filter((o) => o.status === "pending").length;
+      const inProgress = ordersData.filter((o) => o.status === "preparing").length;
+      const delivered = ordersData.filter((o) => o.status === "delivered").length;
+      setStats({ pending, inProgress, delivered });
     }
 
     // Load menu items
@@ -323,10 +328,18 @@ const Admin = () => {
             <img src={logo} alt="BitesQuicky" className="h-12" />
             <h1 className="text-2xl font-bold">Admin Dashboard</h1>
           </div>
-          <Button variant="ghost" onClick={handleLogout} className="gap-2">
-            <LogOut className="h-4 w-4" />
-            Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <NotificationBell
+              onOrderClick={(orderId) => {
+                setSelectedOrderId(orderId);
+                setOrderDetailsOpen(true);
+              }}
+            />
+            <Button variant="ghost" onClick={handleLogout} className="gap-2">
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -392,10 +405,10 @@ const Admin = () => {
                       <TableRow>
                         <TableHead>Receipt</TableHead>
                         <TableHead>Name</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Zone</TableHead>
+                        <TableHead>Phone</TableHead>
                         <TableHead>Total</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Date</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -407,21 +420,7 @@ const Admin = () => {
                           </TableCell>
                           <TableCell>{order.contact_name || "N/A"}</TableCell>
                           <TableCell>{order.contact_phone}</TableCell>
-                          <TableCell>{order.pickup_zones?.name || "N/A"}</TableCell>
-                          <TableCell>KES {order.total_amount}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                order.status === "delivered"
-                                  ? "default"
-                                  : order.status === "in_progress"
-                                  ? "secondary"
-                                  : "outline"
-                              }
-                            >
-                              {order.status}
-                            </Badge>
-                          </TableCell>
+                          <TableCell className="font-semibold">KES {order.total_amount}</TableCell>
                           <TableCell>
                             <Select
                               value={order.status}
@@ -434,8 +433,8 @@ const Admin = () => {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="pending">Pending</SelectItem>
-                                <SelectItem value="in_progress">
-                                  In Progress
+                                <SelectItem value="preparing">
+                                  Preparing
                                 </SelectItem>
                                 <SelectItem value="delivered">
                                   Delivered
@@ -445,6 +444,33 @@ const Admin = () => {
                                 </SelectItem>
                               </SelectContent>
                             </Select>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {new Date(order.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedOrderId(order.id);
+                                  setOrderDetailsOpen(true);
+                                }}
+                              >
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedOrderId(order.id);
+                                  setOrderDetailsOpen(true);
+                                }}
+                              >
+                                <Download className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -742,6 +768,12 @@ const Admin = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <OrderDetailsModal
+        orderId={selectedOrderId}
+        open={orderDetailsOpen}
+        onOpenChange={setOrderDetailsOpen}
+      />
     </div>
   );
 };
