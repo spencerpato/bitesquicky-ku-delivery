@@ -47,7 +47,7 @@ interface Order {
   total_amount: number;
   status: string;
   created_at: string;
-  pickup_zones: { name: string } | null;
+  pickup_zone_id: string | null;
 }
 
 interface MenuItem {
@@ -114,15 +114,15 @@ const Admin = () => {
 
   const loadData = async () => {
     // Load orders
-    const { data: ordersData } = await supabase
+    const { data: ordersData, error: ordersError } = await supabase
       .from("orders")
-      .select(`
-        *,
-        pickup_zones(name)
-      `)
+      .select("*")
       .order("created_at", { ascending: false });
 
-    if (ordersData) {
+    if (ordersError) {
+      console.error("Error loading orders:", ordersError);
+      toast.error("Failed to load orders: " + ordersError.message);
+    } else if (ordersData) {
       setOrders(ordersData as any);
       const pending = ordersData.filter((o) => o.status === "pending").length;
       const inProgress = ordersData.filter((o) => o.status === "preparing").length;
@@ -131,21 +131,31 @@ const Admin = () => {
     }
 
     // Load menu items
-    const { data: menuData } = await supabase
+    const { data: menuData, error: menuError } = await supabase
       .from("menu_items")
       .select("*")
       .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
 
-    if (menuData) setMenuItems(menuData);
+    if (menuError) {
+      console.error("Error loading menu items:", menuError);
+      toast.error("Failed to load menu items: " + menuError.message);
+    } else if (menuData) {
+      setMenuItems(menuData);
+    }
 
     // Load delivery fee tiers
-    const { data: tiersData } = await supabase
+    const { data: tiersData, error: tiersError } = await supabase
       .from("delivery_fee_tiers")
       .select("*")
       .order("min_amount", { ascending: true });
 
-    if (tiersData) setDeliveryTiers(tiersData);
+    if (tiersError) {
+      console.error("Error loading delivery tiers:", tiersError);
+      toast.error("Failed to load delivery tiers: " + tiersError.message);
+    } else if (tiersData) {
+      setDeliveryTiers(tiersData);
+    }
   };
 
   const handleLogout = () => {
@@ -308,10 +318,7 @@ const Admin = () => {
   const downloadOrderReceipt = async (orderId: string) => {
     const { data: orderData } = await supabase
       .from("orders")
-      .select(`
-        *,
-        pickup_zones (name)
-      `)
+      .select("*")
       .eq("id", orderId)
       .single();
 
@@ -378,7 +385,7 @@ const Admin = () => {
     y += 4;
     doc.text(`Phone: ${order.contact_phone}`, 5, y);
     y += 4;
-    doc.text(`Pickup: ${order.pickup_zones?.name || 'N/A'}`, 5, y);
+    doc.text(`Pickup Zone ID: ${order.pickup_zone_id || 'N/A'}`, 5, y);
     y += 4;
 
     if (order.room_number) {
@@ -465,7 +472,7 @@ const Admin = () => {
         o.receipt_code,
         o.contact_name || "",
         o.contact_phone,
-        o.pickup_zones?.name || "",
+        o.pickup_zone_id || "",
         o.status,
         o.total_amount,
         new Date(o.created_at).toLocaleDateString(),
