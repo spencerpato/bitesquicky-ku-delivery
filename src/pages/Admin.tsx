@@ -91,6 +91,25 @@ const Admin = () => {
     }
 
     loadData();
+
+    const ordersChannel = supabase
+      .channel("orders-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orders",
+        },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ordersChannel);
+    };
   }, [navigate]);
 
   const loadData = async () => {
@@ -543,22 +562,31 @@ const Admin = () => {
                 </Button>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Receipt</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {orders.map((order) => (
-                        <TableRow key={order.id}>
+                {orders.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No orders yet</h3>
+                    <p className="text-muted-foreground">
+                      Orders will appear here once customers start placing them.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Receipt</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Phone</TableHead>
+                          <TableHead>Total</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {orders.map((order) => (
+                          <TableRow key={order.id}>
                           <TableCell className="font-mono text-xs">
                             {order.receipt_code}
                           </TableCell>
@@ -615,11 +643,12 @@ const Admin = () => {
                               </Button>
                             </div>
                           </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -743,9 +772,27 @@ const Admin = () => {
                 </Dialog>
               </CardHeader>
               <CardContent>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {menuItems.map((item) => (
-                    <Card key={item.id}>
+                {menuItems.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No menu items yet</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Start by adding your first menu item.
+                    </p>
+                    <Button
+                      onClick={() => {
+                        setEditingItem(null);
+                        setMenuDialogOpen(true);
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add First Item
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {menuItems.map((item) => (
+                      <Card key={item.id}>
                       <img
                         src={item.image_url || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400"}
                         alt={item.title}
@@ -798,8 +845,9 @@ const Admin = () => {
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -864,18 +912,36 @@ const Admin = () => {
                 </Dialog>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Min Amount</TableHead>
-                      <TableHead>Max Amount</TableHead>
-                      <TableHead>Delivery Fee</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {deliveryTiers.map((tier) => (
-                      <TableRow key={tier.id}>
+                {deliveryTiers.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No delivery fee tiers yet</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Set up delivery fee tiers based on order amounts.
+                    </p>
+                    <Button
+                      onClick={() => {
+                        setEditingTier(null);
+                        setTierDialogOpen(true);
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add First Tier
+                    </Button>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Min Amount</TableHead>
+                        <TableHead>Max Amount</TableHead>
+                        <TableHead>Delivery Fee</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {deliveryTiers.map((tier) => (
+                        <TableRow key={tier.id}>
                         <TableCell>KES {tier.min_amount}</TableCell>
                         <TableCell>
                           {tier.max_amount ? `KES ${tier.max_amount}` : "No limit"}
@@ -902,10 +968,11 @@ const Admin = () => {
                             </Button>
                           </div>
                         </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
