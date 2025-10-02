@@ -164,18 +164,43 @@ const Admin = () => {
   };
 
   const updateOrderStatus = async (id: string, status: string) => {
-    const { error } = await supabase
-      .from("orders")
-      .update({ status })
-      .eq("id", id);
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ status })
+        .eq("id", id);
 
-    if (error) {
-      toast.error("Failed to update order");
-      return;
+      if (error) {
+        console.error("Error updating order status:", error);
+        toast.error(`Failed to update order status: ${error.message}`);
+        
+        // Check if it's an RLS policy issue
+        if (error.message.includes("policy") || error.code === "42501") {
+          toast.error("Database permissions error. Please apply the SQL migration from DATABASE_FIXES.md");
+        }
+        return;
+      }
+
+      // Update local state immediately for instant feedback
+      setOrders(prevOrders => {
+        const updatedOrders = prevOrders.map(order => 
+          order.id === id ? { ...order, status } : order
+        );
+        
+        // Recalculate stats from the updated orders
+        const pending = updatedOrders.filter((o) => o.status === "pending").length;
+        const inProgress = updatedOrders.filter((o) => o.status === "preparing").length;
+        const delivered = updatedOrders.filter((o) => o.status === "delivered").length;
+        setStats({ pending, inProgress, delivered });
+        
+        return updatedOrders;
+      });
+
+      toast.success(`Order status updated to ${status}!`);
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      toast.error("An unexpected error occurred");
     }
-
-    toast.success("Order updated!");
-    loadData();
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -316,153 +341,185 @@ const Admin = () => {
   };
 
   const downloadOrderReceipt = async (orderId: string) => {
-    const { data: orderData } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("id", orderId)
-      .single();
+    try {
+      const { data: orderData, error: orderError } = await supabase
+        .from("orders")
+        .select(`
+          *,
+          pickup_zones (name)
+        `)
+        .eq("id", orderId)
+        .single();
 
-    const { data: itemsData } = await supabase
-      .from("order_items")
-      .select(`
-        *,
-        menu_items (title)
-      `)
-      .eq("order_id", orderId);
+      if (orderError) {
+        console.error("Error loading order:", orderError);
+        toast.error(`Failed to load order: ${orderError.message}`);
+        if (orderError.message.includes("policy") || orderError.code === "42501") {
+          toast.error("Database permissions error. Please apply the SQL migration from DATABASE_FIXES.md");
+        }
+        return;
+      }
 
-    if (!orderData) {
-      toast.error("Failed to load order details");
-      return;
-    }
+      const { data: itemsData, error: itemsError } = await supabase
+        .from("order_items")
+        .select(`
+          *,
+          menu_items (title)
+        `)
+        .eq("order_id", orderId);
 
-    const order = orderData;
-    const orderItems = itemsData || [];
+      if (itemsError) {
+        console.error("Error loading order items:", itemsError);
+        toast.error(`Failed to load order items: ${itemsError.message}`);
+        if (itemsError.message.includes("policy") || itemsError.message.includes("does not exist")) {
+          toast.error("Order items table not found. Please apply the SQL migration from DATABASE_FIXES.md");
+        }
+        return;
+      }
 
-    const doc = new jsPDF({
-      unit: 'mm',
-      format: [80, 297]
-    });
+      if (!orderData) {
+        toast.error("Order not found");
+        return;
+      }
 
-    const centerX = 40;
-    let y = 10;
+      const order = orderData;
+      const orderItems = itemsData || [];
 
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text("BITESQUICKY", centerX, y, { align: "center" });
-    y += 6;
+      if (orderItems.length === 0) {
+        toast.warning("This order has no items. Receipt may be incomplete.");
+      }
 
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text("Fast Campus Food Delivery", centerX, y, { align: "center" });
-    y += 4;
-    doc.text("Tel: +254 114 097 160", centerX, y, { align: "center" });
-    y += 6;
+      const doc = new jsPDF({
+        unit: 'mm',
+        format: [80, 297]
+      });
 
-    const orderDate = new Date(order.created_at);
-    const dateStr = orderDate.toLocaleDateString('en-GB');
-    const timeStr = orderDate.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
+      const centerX = 40;
+      let y = 10;
 
-    doc.setFontSize(7);
-    doc.text(`Date: ${dateStr}`, 5, y);
-    doc.text(`Time: ${timeStr}`, 55, y, { align: "right" });
-    y += 6;
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text("BITESQUICKY", centerX, y, { align: "center" });
+      y += 6;
 
-    doc.text("========================================", centerX, y, { align: "center" });
-    y += 5;
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Receipt: ${order.receipt_code}`, centerX, y, { align: "center" });
-    y += 6;
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Customer: ${order.contact_name || 'N/A'}`, 5, y);
-    y += 4;
-    doc.text(`Phone: ${order.contact_phone}`, 5, y);
-    y += 4;
-    doc.text(`Pickup Zone ID: ${order.pickup_zone_id || 'N/A'}`, 5, y);
-    y += 4;
-
-    if (order.room_number) {
-      doc.text(`Room: ${order.room_number}`, 5, y);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text("Fast Campus Food Delivery", centerX, y, { align: "center" });
       y += 4;
-    }
+      doc.text("Tel: +254 114 097 160", centerX, y, { align: "center" });
+      y += 6;
 
-    if (order.special_instructions) {
+      const orderDate = new Date(order.created_at);
+      const dateStr = orderDate.toLocaleDateString('en-GB');
+      const timeStr = orderDate.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+
       doc.setFontSize(7);
-      doc.text(`Note: ${order.special_instructions}`, 5, y);
+      doc.text(`Date: ${dateStr}`, 5, y);
+      doc.text(`Time: ${timeStr}`, 55, y, { align: "right" });
+      y += 6;
+
+      doc.text("========================================", centerX, y, { align: "center" });
+      y += 5;
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Receipt: ${order.receipt_code}`, centerX, y, { align: "center" });
+      y += 6;
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Customer: ${order.contact_name || 'N/A'}`, 5, y);
       y += 4;
-    }
-
-    y += 2;
-    doc.text("========================================", centerX, y, { align: "center" });
-    y += 5;
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.text("ITEM", 5, y);
-    doc.text("QTY", 50, y);
-    doc.text("AMOUNT", 75, y, { align: "right" });
-    y += 4;
-    doc.setFont('helvetica', 'normal');
-    doc.text("----------------------------------------", centerX, y, { align: "center" });
-    y += 4;
-
-    doc.setFontSize(7);
-    orderItems.forEach((item: any) => {
-      const itemName = item.menu_items?.title || 'Unknown Item';
-      const displayName = itemName.length > 25 ? itemName.substring(0, 25) + '...' : itemName;
-      doc.text(displayName, 5, y);
-      doc.text(`${item.quantity}`, 52, y);
-      doc.text(`${item.subtotal}`, 75, y, { align: "right" });
+      doc.text(`Phone: ${order.contact_phone}`, 5, y);
+      y += 4;
+      doc.text(`Pickup: ${order.pickup_zones?.name || 'N/A'}`, 5, y);
+      y += 4;
+      doc.text(`Status: ${order.status.toUpperCase()}`, 5, y);
       y += 4;
 
+      if (order.room_number) {
+        doc.text(`Room: ${order.room_number}`, 5, y);
+        y += 4;
+      }
+
+      if (order.special_instructions) {
+        doc.setFontSize(7);
+        doc.text(`Note: ${order.special_instructions}`, 5, y);
+        y += 4;
+      }
+
+      y += 2;
+      doc.text("========================================", centerX, y, { align: "center" });
+      y += 5;
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text("ITEM", 5, y);
+      doc.text("QTY", 50, y);
+      doc.text("AMOUNT", 75, y, { align: "right" });
+      y += 4;
+      doc.setFont('helvetica', 'normal');
+      doc.text("----------------------------------------", centerX, y, { align: "center" });
+      y += 4;
+
+      doc.setFontSize(7);
+      orderItems.forEach((item: any) => {
+        const itemName = item.menu_items?.title || 'Unknown Item';
+        const displayName = itemName.length > 25 ? itemName.substring(0, 25) + '...' : itemName;
+        doc.text(displayName, 5, y);
+        doc.text(`${item.quantity}`, 52, y);
+        doc.text(`${item.subtotal}`, 75, y, { align: "right" });
+        y += 4;
+
+        doc.setFontSize(6);
+        doc.text(`@ KES ${item.price_at_time} each`, 5, y);
+        doc.setFontSize(7);
+        y += 4;
+      });
+
+      y += 1;
+      doc.text("========================================", centerX, y, { align: "center" });
+      y += 5;
+
+      const subtotal = order.total_amount - order.delivery_fee;
+      doc.setFontSize(8);
+      doc.text("Subtotal:", 5, y);
+      doc.text(`KES ${subtotal}`, 75, y, { align: "right" });
+      y += 5;
+
+      doc.text("Delivery Fee:", 5, y);
+      doc.text(`KES ${order.delivery_fee}`, 75, y, { align: "right" });
+      y += 5;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text("TOTAL:", 5, y);
+      doc.text(`KES ${order.total_amount}`, 75, y, { align: "right" });
+      y += 7;
+
+      doc.setFont('helvetica', 'normal');
       doc.setFontSize(6);
-      doc.text(`@ KES ${item.price_at_time} each`, 5, y);
+      doc.text("========================================", centerX, y, { align: "center" });
+      y += 5;
+
       doc.setFontSize(7);
+      doc.text("Thank you for your order!", centerX, y, { align: "center" });
       y += 4;
-    });
+      doc.text("Please keep this receipt for reference", centerX, y, { align: "center" });
+      y += 4;
+      doc.setFontSize(6);
+      doc.text("Order queries: WhatsApp +254 114 097 160", centerX, y, { align: "center" });
 
-    y += 1;
-    doc.text("========================================", centerX, y, { align: "center" });
-    y += 5;
-
-    const subtotal = order.total_amount - order.delivery_fee;
-    doc.setFontSize(8);
-    doc.text("Subtotal:", 5, y);
-    doc.text(`KES ${subtotal}`, 75, y, { align: "right" });
-    y += 5;
-
-    doc.text("Delivery Fee:", 5, y);
-    doc.text(`KES ${order.delivery_fee}`, 75, y, { align: "right" });
-    y += 5;
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text("TOTAL:", 5, y);
-    doc.text(`KES ${order.total_amount}`, 75, y, { align: "right" });
-    y += 7;
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6);
-    doc.text("========================================", centerX, y, { align: "center" });
-    y += 5;
-
-    doc.setFontSize(7);
-    doc.text("Thank you for your order!", centerX, y, { align: "center" });
-    y += 4;
-    doc.text("Please keep this receipt for reference", centerX, y, { align: "center" });
-    y += 4;
-    doc.setFontSize(6);
-    doc.text("Order queries: WhatsApp +254 114 097 160", centerX, y, { align: "center" });
-
-    doc.save(`BitesQuicky-${order.receipt_code}.pdf`);
-    toast.success("Receipt downloaded!");
+      doc.save(`BitesQuicky-${order.receipt_code}.pdf`);
+      toast.success("Receipt downloaded successfully!");
+    } catch (err) {
+      console.error("Error generating receipt:", err);
+      toast.error("Failed to generate receipt. Please try again.");
+    }
   };
 
   const exportOrders = () => {
