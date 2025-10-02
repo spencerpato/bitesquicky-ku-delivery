@@ -78,5 +78,16 @@ src/
     * Delivery Fee Manager with full CRUD operations
   - Fixed routing configuration with vercel.json for proper SPA behavior on refresh
 
+- **2025-10-02**: Identified and documented database security issues
+  - Analyzed admin dashboard issues: status updates, view buttons, receipts, and notifications
+  - Found missing Row Level Security (RLS) policies in Supabase database
+  - Created migration file `supabase/migrations/20251002160000_fix_rls_policies_and_order_items.sql`
+  - Created `DATABASE_FIXES.md` with step-by-step instructions for applying fixes
+  - Issues identified:
+    * Missing SELECT policy on orders table (prevents viewing orders)
+    * Missing UPDATE policy on orders table (prevents status changes)
+    * Missing order_items table and related policies (prevents receipt generation with items)
+  - **ACTION REQUIRED**: User needs to apply the SQL migration via Supabase dashboard to enable admin features
+
 ## User Preferences
 None specified yet.
