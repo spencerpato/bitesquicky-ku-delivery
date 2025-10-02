@@ -380,10 +380,7 @@ const Admin = () => {
 
       const { data: itemsData, error: itemsError } = await supabase
         .from("order_items")
-        .select(`
-          *,
-          menu_items (title)
-        `)
+        .select("*")
         .eq("order_id", orderId);
 
       if (itemsError) {
@@ -396,7 +393,27 @@ const Admin = () => {
       }
 
       const order = orderData;
-      const orderItems = itemsData || [];
+      let orderItems = itemsData || [];
+
+      if (orderItems.length > 0) {
+        orderItems = await Promise.all(
+          orderItems.map(async (item: any) => {
+            if (item.item_id) {
+              const { data: menuItem } = await supabase
+                .from("menu_items")
+                .select("title")
+                .eq("id", item.item_id)
+                .single();
+              
+              return {
+                ...item,
+                menu_items: menuItem ? { title: menuItem.title } : null
+              };
+            }
+            return item;
+          })
+        );
+      }
 
       if (orderItems.length === 0) {
         toast.warning("This order has no items. Receipt may be incomplete.");

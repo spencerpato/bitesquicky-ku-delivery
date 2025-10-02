@@ -109,10 +109,7 @@ const OrderDetailsModal = ({ orderId, open, onOpenChange }: OrderDetailsModalPro
 
       const { data: itemsData, error: itemsError } = await supabase
         .from("order_items")
-        .select(`
-          *,
-          menu_items (title)
-        `)
+        .select("*")
         .eq("order_id", orderId);
 
       if (itemsError) {
@@ -123,12 +120,33 @@ const OrderDetailsModal = ({ orderId, open, onOpenChange }: OrderDetailsModalPro
         }
       }
 
-      setOrder(orderWithZone);
-      if (itemsData) setOrderItems(itemsData);
-      
-      if (!itemsData || itemsData.length === 0) {
-        toast.warning("No items found for this order");
+      if (itemsData && itemsData.length > 0) {
+        const itemsWithTitles = await Promise.all(
+          itemsData.map(async (item: any) => {
+            if (item.item_id) {
+              const { data: menuItem } = await supabase
+                .from("menu_items")
+                .select("title")
+                .eq("id", item.item_id)
+                .single();
+              
+              return {
+                ...item,
+                menu_items: menuItem ? { title: menuItem.title } : null
+              };
+            }
+            return item;
+          })
+        );
+        setOrderItems(itemsWithTitles);
+      } else {
+        setOrderItems([]);
+        if (!itemsError) {
+          toast.warning("No items found for this order");
+        }
       }
+
+      setOrder(orderWithZone);
     } catch (err) {
       console.error("Unexpected error:", err);
       toast.error("Failed to load order details");
