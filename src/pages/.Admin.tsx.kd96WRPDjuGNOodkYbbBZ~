@@ -234,30 +234,14 @@ const Admin = () => {
     if (!deleteOrderId) return;
 
     try {
-      console.log("Attempting to delete order:", deleteOrderId);
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("orders")
         .delete()
-        .eq("id", deleteOrderId)
-        .select();
-
-      console.log("Delete response:", { data, error });
+        .eq("id", deleteOrderId);
 
       if (error) {
         console.error("Error deleting order:", error);
-        console.error("Error details:", JSON.stringify(error, null, 2));
-        
-        toast.error(`Failed to delete: ${error.message}`, { duration: 5000 });
-        
-        if (error.message.includes("policy") || error.message.includes("permission") || error.code === "42501") {
-          toast.error("⚠️ Database permissions blocked this deletion. You need to apply the RLS policies in your Supabase dashboard.", { duration: 10000 });
-        }
-        return;
-      }
-
-      if (!data || data.length === 0) {
-        console.error("No data returned from delete - likely RLS policy blocking it");
-        toast.error("⚠️ Delete blocked by database security. Apply RLS policies in Supabase dashboard.", { duration: 10000 });
+        toast.error(`Failed to delete order: ${error.message}`);
         return;
       }
 
@@ -274,12 +258,11 @@ const Admin = () => {
         return updatedOrders;
       });
 
-      console.log("Order deleted successfully");
       toast.success("Order deleted successfully!");
       setDeleteOrderId(null);
     } catch (err) {
       console.error("Unexpected error:", err);
-      toast.error("An unexpected error occurred: " + String(err));
+      toast.error("An unexpected error occurred");
     }
   };
 
