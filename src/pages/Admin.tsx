@@ -36,6 +36,7 @@ import { Package, Clock, CircleCheck as CheckCircle, LogOut, Plus, Pencil, Trash
 import logo from "@/assets/logo.png";
 import NotificationBell from "@/components/NotificationBell";
 import OrderDetailsModal from "@/components/OrderDetailsModal";
+import jsPDF from "jspdf";
 
 interface Order {
   id: string;
@@ -285,6 +286,159 @@ const Admin = () => {
     loadData();
   };
 
+  const downloadOrderReceipt = async (orderId: string) => {
+    const { data: orderData } = await supabase
+      .from("orders")
+      .select(`
+        *,
+        pickup_zones (name)
+      `)
+      .eq("id", orderId)
+      .single();
+
+    const { data: itemsData } = await supabase
+      .from("order_items")
+      .select(`
+        *,
+        menu_items (title)
+      `)
+      .eq("order_id", orderId);
+
+    if (!orderData) {
+      toast.error("Failed to load order details");
+      return;
+    }
+
+    const order = orderData;
+    const orderItems = itemsData || [];
+
+    const doc = new jsPDF({
+      unit: 'mm',
+      format: [80, 297]
+    });
+
+    const centerX = 40;
+    let y = 10;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text("BITESQUICKY", centerX, y, { align: "center" });
+    y += 6;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text("Fast Campus Food Delivery", centerX, y, { align: "center" });
+    y += 4;
+    doc.text("Tel: +254 114 097 160", centerX, y, { align: "center" });
+    y += 6;
+
+    const orderDate = new Date(order.created_at);
+    const dateStr = orderDate.toLocaleDateString('en-GB');
+    const timeStr = orderDate.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    doc.setFontSize(7);
+    doc.text(`Date: ${dateStr}`, 5, y);
+    doc.text(`Time: ${timeStr}`, 55, y, { align: "right" });
+    y += 6;
+
+    doc.text("========================================", centerX, y, { align: "center" });
+    y += 5;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Receipt: ${order.receipt_code}`, centerX, y, { align: "center" });
+    y += 6;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Customer: ${order.contact_name || 'N/A'}`, 5, y);
+    y += 4;
+    doc.text(`Phone: ${order.contact_phone}`, 5, y);
+    y += 4;
+    doc.text(`Pickup: ${order.pickup_zones?.name || 'N/A'}`, 5, y);
+    y += 4;
+
+    if (order.room_number) {
+      doc.text(`Room: ${order.room_number}`, 5, y);
+      y += 4;
+    }
+
+    if (order.special_instructions) {
+      doc.setFontSize(7);
+      doc.text(`Note: ${order.special_instructions}`, 5, y);
+      y += 4;
+    }
+
+    y += 2;
+    doc.text("========================================", centerX, y, { align: "center" });
+    y += 5;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text("ITEM", 5, y);
+    doc.text("QTY", 50, y);
+    doc.text("AMOUNT", 75, y, { align: "right" });
+    y += 4;
+    doc.setFont('helvetica', 'normal');
+    doc.text("----------------------------------------", centerX, y, { align: "center" });
+    y += 4;
+
+    doc.setFontSize(7);
+    orderItems.forEach((item: any) => {
+      const itemName = item.menu_items?.title || 'Unknown Item';
+      const displayName = itemName.length > 25 ? itemName.substring(0, 25) + '...' : itemName;
+      doc.text(displayName, 5, y);
+      doc.text(`${item.quantity}`, 52, y);
+      doc.text(`${item.subtotal}`, 75, y, { align: "right" });
+      y += 4;
+
+      doc.setFontSize(6);
+      doc.text(`@ KES ${item.price_at_time} each`, 5, y);
+      doc.setFontSize(7);
+      y += 4;
+    });
+
+    y += 1;
+    doc.text("========================================", centerX, y, { align: "center" });
+    y += 5;
+
+    const subtotal = order.total_amount - order.delivery_fee;
+    doc.setFontSize(8);
+    doc.text("Subtotal:", 5, y);
+    doc.text(`KES ${subtotal}`, 75, y, { align: "right" });
+    y += 5;
+
+    doc.text("Delivery Fee:", 5, y);
+    doc.text(`KES ${order.delivery_fee}`, 75, y, { align: "right" });
+    y += 5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text("TOTAL:", 5, y);
+    doc.text(`KES ${order.total_amount}`, 75, y, { align: "right" });
+    y += 7;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.text("========================================", centerX, y, { align: "center" });
+    y += 5;
+
+    doc.setFontSize(7);
+    doc.text("Thank you for your order!", centerX, y, { align: "center" });
+    y += 4;
+    doc.text("Please keep this receipt for reference", centerX, y, { align: "center" });
+    y += 4;
+    doc.setFontSize(6);
+    doc.text("Order queries: WhatsApp +254 114 097 160", centerX, y, { align: "center" });
+
+    doc.save(`BitesQuicky-${order.receipt_code}.pdf`);
+    toast.success("Receipt downloaded!");
+  };
+
   const exportOrders = () => {
     const csv = [
       ["Receipt Code", "Name", "Contact", "Zone", "Status", "Total", "Date"],
@@ -447,16 +601,15 @@ const Admin = () => {
                                   setSelectedOrderId(order.id);
                                   setOrderDetailsOpen(true);
                                 }}
+                                data-testid={`button-view-order-${order.id}`}
                               >
                                 <Eye className="h-3 w-3" />
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => {
-                                  setSelectedOrderId(order.id);
-                                  setOrderDetailsOpen(true);
-                                }}
+                                onClick={() => downloadOrderReceipt(order.id)}
+                                data-testid={`button-download-receipt-${order.id}`}
                               >
                                 <Download className="h-3 w-3" />
                               </Button>
