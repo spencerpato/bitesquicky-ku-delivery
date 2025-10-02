@@ -344,10 +344,7 @@ const Admin = () => {
     try {
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
-        .select(`
-          *,
-          pickup_zones (name)
-        `)
+        .select("*")
         .eq("id", orderId)
         .single();
 
@@ -358,6 +355,27 @@ const Admin = () => {
           toast.error("Database permissions error. Please apply the SQL migration from DATABASE_FIXES.md");
         }
         return;
+      }
+
+      if (!orderData) {
+        toast.error("Order not found");
+        return;
+      }
+
+      let pickupZone = null;
+      if (orderData.pickup_zone_id) {
+        const { data: zoneData, error: zoneError } = await supabase
+          .from("pickup_zones")
+          .select("id, name")
+          .eq("id", orderData.pickup_zone_id)
+          .single();
+
+        if (zoneError) {
+          console.error("Error loading pickup zone:", zoneError);
+          toast.warning("Could not load pickup zone details");
+        } else if (zoneData) {
+          pickupZone = zoneData;
+        }
       }
 
       const { data: itemsData, error: itemsError } = await supabase
@@ -374,11 +392,6 @@ const Admin = () => {
         if (itemsError.message.includes("policy") || itemsError.message.includes("does not exist")) {
           toast.error("Order items table not found. Please apply the SQL migration from DATABASE_FIXES.md");
         }
-        return;
-      }
-
-      if (!orderData) {
-        toast.error("Order not found");
         return;
       }
 
@@ -436,7 +449,9 @@ const Admin = () => {
       y += 4;
       doc.text(`Phone: ${order.contact_phone}`, 5, y);
       y += 4;
-      doc.text(`Pickup: ${order.pickup_zones?.name || 'N/A'}`, 5, y);
+      
+      const pickupZoneName = pickupZone?.name || 'N/A';
+      doc.text(`Pickup: ${pickupZoneName}`, 5, y);
       y += 4;
       doc.text(`Status: ${order.status.toUpperCase()}`, 5, y);
       y += 4;

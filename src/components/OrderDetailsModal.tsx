@@ -22,6 +22,11 @@ interface OrderItem {
   };
 }
 
+interface PickupZone {
+  id: string;
+  name: string;
+}
+
 interface Order {
   id: string;
   receipt_code: string;
@@ -33,9 +38,8 @@ interface Order {
   room_number: string | null;
   special_instructions: string | null;
   created_at: string;
-  pickup_zones?: {
-    name: string;
-  };
+  pickup_zone_id: string | null;
+  pickup_zone?: PickupZone | null;
 }
 
 interface OrderDetailsModalProps {
@@ -63,10 +67,7 @@ const OrderDetailsModal = ({ orderId, open, onOpenChange }: OrderDetailsModalPro
     try {
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
-        .select(`
-          *,
-          pickup_zones (name)
-        `)
+        .select("*")
         .eq("id", orderId)
         .single();
 
@@ -78,6 +79,32 @@ const OrderDetailsModal = ({ orderId, open, onOpenChange }: OrderDetailsModalPro
         }
         setLoading(false);
         return;
+      }
+
+      if (!orderData) {
+        toast.error("Order not found");
+        setLoading(false);
+        return;
+      }
+
+      const orderWithZone: Order = {
+        ...orderData,
+        pickup_zone: null
+      } as Order;
+
+      if (orderWithZone.pickup_zone_id) {
+        const { data: zoneData, error: zoneError } = await supabase
+          .from("pickup_zones")
+          .select("id, name")
+          .eq("id", orderWithZone.pickup_zone_id)
+          .single();
+
+        if (zoneError) {
+          console.error("Error loading pickup zone:", zoneError);
+          toast.warning("Could not load pickup zone details");
+        } else if (zoneData) {
+          orderWithZone.pickup_zone = zoneData;
+        }
       }
 
       const { data: itemsData, error: itemsError } = await supabase
@@ -96,7 +123,7 @@ const OrderDetailsModal = ({ orderId, open, onOpenChange }: OrderDetailsModalPro
         }
       }
 
-      if (orderData) setOrder(orderData);
+      setOrder(orderWithZone);
       if (itemsData) setOrderItems(itemsData);
       
       if (!itemsData || itemsData.length === 0) {
@@ -169,7 +196,9 @@ const OrderDetailsModal = ({ orderId, open, onOpenChange }: OrderDetailsModalPro
       y += 4;
       doc.text(`Phone: ${order.contact_phone}`, 5, y);
       y += 4;
-      doc.text(`Pickup: ${order.pickup_zones?.name || 'N/A'}`, 5, y);
+      
+      const pickupZoneName = order.pickup_zone?.name || 'N/A';
+      doc.text(`Pickup: ${pickupZoneName}`, 5, y);
       y += 4;
 
       if (order.room_number) {
@@ -296,7 +325,7 @@ const OrderDetailsModal = ({ orderId, open, onOpenChange }: OrderDetailsModalPro
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Pickup Zone</p>
-              <p className="font-semibold">{order.pickup_zones?.name || 'N/A'}</p>
+              <p className="font-semibold">{order.pickup_zone?.name || 'N/A'}</p>
             </div>
             {order.room_number && (
               <div>
