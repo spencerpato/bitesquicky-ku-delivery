@@ -56,6 +56,7 @@ interface Order {
   contact_phone: string;
   room_number: string | null;
   total_amount: number;
+  delivery_fee: number;
   status: string;
   created_at: string;
   pickup_zone_id: string | null;
@@ -80,12 +81,21 @@ interface DeliveryFeeTier {
   fee: number;
 }
 
+interface DailyProfit {
+  id: string;
+  date: string;
+  total_profit: number;
+  total_orders: number;
+  created_at: string;
+}
+
 const Admin = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [deliveryTiers, setDeliveryTiers] = useState<DeliveryFeeTier[]>([]);
-  const [stats, setStats] = useState({ pending: 0, inProgress: 0, delivered: 0 });
+  const [dailyProfits, setDailyProfits] = useState<DailyProfit[]>([]);
+  const [stats, setStats] = useState({ pending: 0, inProgress: 0, delivered: 0, dailyProfit: 0 });
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [menuDialogOpen, setMenuDialogOpen] = useState(false);
   const [editingTier, setEditingTier] = useState<DeliveryFeeTier | null>(null);
@@ -95,6 +105,7 @@ const Admin = () => {
   const [orderDetailsOpen, setOrderDetailsOpen] = useState(false);
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
 
   useEffect(() => {
     const isAuth = localStorage.getItem("adminAuth");
@@ -140,7 +151,13 @@ const Admin = () => {
       const pending = ordersData.filter((o) => o.status === "pending").length;
       const inProgress = ordersData.filter((o) => o.status === "preparing").length;
       const delivered = ordersData.filter((o) => o.status === "delivered").length;
-      setStats({ pending, inProgress, delivered });
+      
+      // Calculate daily profit (sum of delivery fees from delivered orders)
+      const dailyProfit = ordersData
+        .filter((o) => o.status === "delivered")
+        .reduce((sum, o) => sum + (o.delivery_fee || 0), 0);
+      
+      setStats({ pending, inProgress, delivered, dailyProfit });
     }
 
     // Load menu items
@@ -168,6 +185,19 @@ const Admin = () => {
       toast.error("Failed to load delivery tiers: " + tiersError.message);
     } else if (tiersData) {
       setDeliveryTiers(tiersData);
+    }
+
+    // Load daily profits (using any for now until types are updated)
+    const { data: profitsData, error: profitsError } = await supabase
+      .from("daily_profits" as any)
+      .select("*")
+      .order("date", { ascending: false })
+      .limit(30);
+
+    if (profitsError) {
+      console.error("Error loading daily profits:", profitsError);
+    } else if (profitsData) {
+      setDailyProfits(profitsData as any);
     }
   };
 
@@ -217,7 +247,10 @@ const Admin = () => {
         const pending = updatedOrders.filter((o) => o.status === "pending").length;
         const inProgress = updatedOrders.filter((o) => o.status === "preparing").length;
         const delivered = updatedOrders.filter((o) => o.status === "delivered").length;
-        setStats({ pending, inProgress, delivered });
+        const dailyProfit = updatedOrders
+          .filter((o) => o.status === "delivered")
+          .reduce((sum, o) => sum + (o.delivery_fee || 0), 0);
+        setStats({ pending, inProgress, delivered, dailyProfit });
         
         return updatedOrders;
       });
@@ -269,7 +302,10 @@ const Admin = () => {
         const pending = updatedOrders.filter((o) => o.status === "pending").length;
         const inProgress = updatedOrders.filter((o) => o.status === "preparing").length;
         const delivered = updatedOrders.filter((o) => o.status === "delivered").length;
-        setStats({ pending, inProgress, delivered });
+        const dailyProfit = updatedOrders
+          .filter((o) => o.status === "delivered")
+          .reduce((sum, o) => sum + (o.delivery_fee || 0), 0);
+        setStats({ pending, inProgress, delivered, dailyProfit });
         
         return updatedOrders;
       });
@@ -277,6 +313,62 @@ const Admin = () => {
       console.log("Order deleted successfully");
       toast.success("Order deleted successfully!");
       setDeleteOrderId(null);
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      toast.error("An unexpected error occurred: " + String(err));
+    }
+  };
+
+  const handleClearAllOrders = async () => {
+    try {
+      if (orders.length === 0) {
+        toast.error("No orders to clear");
+        return;
+      }
+
+      // Calculate today's profit before clearing
+      const todayProfit = stats.dailyProfit;
+      const deliveredCount = stats.delivered;
+      const today = new Date().toISOString().split('T')[0];
+
+      // Save today's profit to daily_profits table (using any for now until types are updated)
+      const { error: profitError } = await supabase
+        .from("daily_profits" as any)
+        .upsert({
+          date: today,
+          total_profit: todayProfit,
+          total_orders: deliveredCount
+        } as any, {
+          onConflict: 'date'
+        });
+
+      if (profitError) {
+        console.error("Error saving daily profit:", profitError);
+        toast.error("Failed to save daily profit: " + profitError.message);
+        return;
+      }
+
+      // Delete all orders
+      const { error: deleteError } = await supabase
+        .from("orders")
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+
+      if (deleteError) {
+        console.error("Error clearing orders:", deleteError);
+        toast.error("Failed to clear orders: " + deleteError.message);
+        return;
+      }
+
+      // Reset local state
+      setOrders([]);
+      setStats({ pending: 0, inProgress: 0, delivered: 0, dailyProfit: 0 });
+      
+      // Reload daily profits
+      loadData();
+
+      toast.success(`All orders cleared! Daily profit of KES ${todayProfit} saved.`);
+      setClearAllDialogOpen(false);
     } catch (err) {
       console.error("Unexpected error:", err);
       toast.error("An unexpected error occurred: " + String(err));
@@ -664,60 +756,74 @@ const Admin = () => {
     <div className="min-h-screen bg-muted/20">
       {/* Header */}
       <header className="bg-background border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="BitesQuicky" className="h-12" />
-            <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+        <div className="container mx-auto px-2 md:px-4 py-3 md:py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 md:gap-3">
+            <img src={logo} alt="BitesQuicky" className="h-10 md:h-12" />
+            <h1 className="text-lg md:text-2xl font-bold">Admin Dashboard</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2">
             <NotificationBell
               onOrderClick={(orderId) => {
                 setSelectedOrderId(orderId);
                 setOrderDetailsOpen(true);
               }}
             />
-            <Button variant="ghost" onClick={handleLogout} className="gap-2">
+            <Button variant="ghost" onClick={handleLogout} className="gap-1 md:gap-2 text-sm md:text-base">
               <LogOut className="h-4 w-4" />
-              Logout
+              <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-2 md:px-4 py-4 md:py-8">
         {/* Stats Cards */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">
-                Pending Orders
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-6 mb-4 md:mb-8">
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-1 md:pb-2 px-3 md:px-6 pt-3 md:pt-6">
+              <CardTitle className="text-xs md:text-sm font-medium">
+                Pending
               </CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+              <Clock className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{stats.pending}</div>
+            <CardContent className="px-3 md:px-6 pb-3 md:pb-6">
+              <div className="text-xl md:text-3xl font-bold">{stats.pending}</div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-1 md:pb-2 px-3 md:px-6 pt-3 md:pt-6">
+              <CardTitle className="text-xs md:text-sm font-medium">
                 In Progress
               </CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+              <Package className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{stats.inProgress}</div>
+            <CardContent className="px-3 md:px-6 pb-3 md:pb-6">
+              <div className="text-xl md:text-3xl font-bold">{stats.inProgress}</div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Delivered</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-1 md:pb-2 px-3 md:px-6 pt-3 md:pt-6">
+              <CardTitle className="text-xs md:text-sm font-medium">Delivered</CardTitle>
+              <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{stats.delivered}</div>
+            <CardContent className="px-3 md:px-6 pb-3 md:pb-6">
+              <div className="text-xl md:text-3xl font-bold">{stats.delivered}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-1 md:pb-2 px-3 md:px-6 pt-3 md:pt-6">
+              <CardTitle className="text-xs md:text-sm font-medium text-green-700 dark:text-green-300">
+                Daily Profit
+              </CardTitle>
+              <span className="text-lg md:text-2xl">💰</span>
+            </CardHeader>
+            <CardContent className="px-3 md:px-6 pb-3 md:pb-6">
+              <div className="text-xl md:text-3xl font-bold text-green-700 dark:text-green-300">
+                KES {stats.dailyProfit}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -732,12 +838,22 @@ const Admin = () => {
 
           {/* Orders Tab */}
           <TabsContent value="orders">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+            <Card className="shadow-md">
+              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <CardTitle>Orders</CardTitle>
-                <Button onClick={exportOrders} variant="outline">
-                  Export CSV
-                </Button>
+                <div className="flex gap-2 flex-wrap">
+                  <Button onClick={exportOrders} variant="outline" size="sm">
+                    Export CSV
+                  </Button>
+                  <Button 
+                    onClick={() => setClearAllDialogOpen(true)} 
+                    variant="destructive" 
+                    size="sm"
+                    disabled={orders.length === 0}
+                  >
+                    Clear All Orders
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {/* Search Bar */}
@@ -759,17 +875,17 @@ const Admin = () => {
                     </p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
+                  <div className="overflow-x-auto -mx-2 md:mx-0">
+                    <Table className="min-w-[800px]">
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Receipt</TableHead>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Phone</TableHead>
-                          <TableHead>Total</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Actions</TableHead>
+                          <TableHead className="text-xs md:text-sm">Receipt</TableHead>
+                          <TableHead className="text-xs md:text-sm">Name</TableHead>
+                          <TableHead className="text-xs md:text-sm">Phone</TableHead>
+                          <TableHead className="text-xs md:text-sm">Total</TableHead>
+                          <TableHead className="text-xs md:text-sm">Status</TableHead>
+                          <TableHead className="text-xs md:text-sm">Date</TableHead>
+                          <TableHead className="text-xs md:text-sm">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -784,12 +900,12 @@ const Admin = () => {
                           })
                           .map((order) => (
                           <TableRow key={order.id}>
-                          <TableCell className="font-mono text-xs">
+                          <TableCell className="font-mono text-[10px] md:text-xs">
                             {order.receipt_code}
                           </TableCell>
-                          <TableCell>{order.contact_name || "N/A"}</TableCell>
-                          <TableCell>{order.contact_phone}</TableCell>
-                          <TableCell className="font-semibold">KES {order.total_amount}</TableCell>
+                          <TableCell className="text-xs md:text-sm">{order.contact_name || "N/A"}</TableCell>
+                          <TableCell className="text-xs md:text-sm">{order.contact_phone}</TableCell>
+                          <TableCell className="font-semibold text-xs md:text-sm">KES {order.total_amount}</TableCell>
                           <TableCell>
                             <Select
                               value={order.status}
@@ -797,7 +913,7 @@ const Admin = () => {
                                 updateOrderStatus(order.id, value)
                               }
                             >
-                              <SelectTrigger className="w-32">
+                              <SelectTrigger className="w-28 md:w-32 h-8 text-xs md:text-sm">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -814,7 +930,7 @@ const Admin = () => {
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
+                          <TableCell className="text-xs md:text-sm text-muted-foreground">
                             {new Date(order.created_at).toLocaleDateString()}
                           </TableCell>
                           <TableCell>
@@ -827,6 +943,7 @@ const Admin = () => {
                                   setOrderDetailsOpen(true);
                                 }}
                                 data-testid={`button-view-order-${order.id}`}
+                                className="h-7 w-7 md:h-8 md:w-8 p-0"
                               >
                                 <Eye className="h-3 w-3" />
                               </Button>
@@ -835,6 +952,7 @@ const Admin = () => {
                                 variant="outline"
                                 onClick={() => downloadOrderReceipt(order.id)}
                                 data-testid={`button-download-receipt-${order.id}`}
+                                className="h-7 w-7 md:h-8 md:w-8 p-0"
                               >
                                 <Download className="h-3 w-3" />
                               </Button>
@@ -843,6 +961,7 @@ const Admin = () => {
                                 variant="outline"
                                 onClick={() => setDeleteOrderId(order.id)}
                                 data-testid={`button-delete-order-${order.id}`}
+                                className="h-7 w-7 md:h-8 md:w-8 p-0"
                               >
                                 <Trash2 className="h-3 w-3 text-destructive" />
                               </Button>
@@ -860,7 +979,7 @@ const Admin = () => {
 
           {/* Menu Manager Tab */}
           <TabsContent value="menu">
-            <Card>
+            <Card className="shadow-md">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Menu Items</CardTitle>
                 <Dialog open={menuDialogOpen} onOpenChange={setMenuDialogOpen}>
@@ -1059,7 +1178,7 @@ const Admin = () => {
 
           {/* Delivery Fees Tab */}
           <TabsContent value="delivery">
-            <Card>
+            <Card className="shadow-md">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Delivery Fee Tiers</CardTitle>
                 <Dialog open={tierDialogOpen} onOpenChange={setTierDialogOpen}>
@@ -1184,6 +1303,51 @@ const Admin = () => {
         </Tabs>
       </div>
 
+      {/* Daily Profits Section */}
+      <div className="container mx-auto px-2 md:px-4 pb-8">
+        <Card className="shadow-md">
+          <CardHeader>
+            <CardTitle className="text-xl md:text-2xl">Daily Profits History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {dailyProfits.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No daily profit records yet. Profits will be saved when you clear all orders.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto -mx-2 md:mx-0">
+                <Table className="min-w-[400px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs md:text-sm">Date</TableHead>
+                      <TableHead className="text-xs md:text-sm">Orders Delivered</TableHead>
+                      <TableHead className="text-xs md:text-sm text-right">Total Profit</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dailyProfits.map((profit) => (
+                      <TableRow key={profit.id}>
+                        <TableCell className="text-xs md:text-sm font-medium">
+                          {new Date(profit.date).toLocaleDateString('en-GB', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </TableCell>
+                        <TableCell className="text-xs md:text-sm">{profit.total_orders}</TableCell>
+                        <TableCell className="text-xs md:text-sm text-right font-bold text-green-700 dark:text-green-300">
+                          KES {profit.total_profit}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <OrderDetailsModal
         orderId={selectedOrderId}
         open={orderDetailsOpen}
@@ -1202,6 +1366,32 @@ const Admin = () => {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={deleteOrder} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={clearAllDialogOpen} onOpenChange={setClearAllDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear All Orders</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to clear all today's orders? This will:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Save today's profit (KES {stats.dailyProfit}) to Daily Profits</li>
+                <li>Delete all {orders.length} order(s) from the list</li>
+                <li>Reset profit counter to zero</li>
+              </ul>
+              <p className="mt-3 font-semibold">This action cannot be undone!</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleClearAllOrders} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Clear All Orders
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

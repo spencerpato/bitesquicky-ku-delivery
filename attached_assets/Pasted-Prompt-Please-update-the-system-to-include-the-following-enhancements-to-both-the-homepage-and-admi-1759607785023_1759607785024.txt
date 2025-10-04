@@ -1,0 +1,92 @@
+Prompt:
+Please update the system to include the following enhancements to both the homepage and admin dashboard for BitesQuicky:
+
+🏠 HOMEPAGE UPDATES
+
+Menu Appearance:
+
+Make the menu section smaller and more compact on mobile so it looks neat and fits more items on one screen.
+
+Reduce card (image, title, price, and button) sizes proportionally for mobile devices.
+
+Maintain clear spacing and padding for a clean, professional appearance.
+
+Category Order:
+
+Ensure Foods appear above Snacks at all times, even after refreshing or reloading.
+
+Responsiveness:
+
+Display 2 columns for mobile, 3 for tablets, and 4 for desktop.
+
+Ensure text and buttons scale smoothly without overlapping.
+
+🧾 ADMIN DASHBOARD UPDATES
+
+Mobile Responsiveness:
+
+Make the dashboard fully mobile-friendly and professional-looking.
+
+Tables should scroll horizontally on mobile to prevent overflow.
+
+Adjust font sizes, margins, and padding to make everything readable and clean on small screens.
+
+Profit Calculation Feature:
+
+Add a Profit Summary Card that automatically calculates the total profit from all Delivered orders.
+
+Formula: Profit = Sum of all delivery fees for orders with status “Delivered.”
+
+Profit updates automatically when an order’s status changes to “Delivered.”
+
+Daily Profit Tracking:
+
+Add a mechanism to save the day’s total profit at the end of each day (or when the admin clears all orders).
+
+When orders are cleared, the total profit for that day should be stored in a separate table or section called “Daily Profits.”
+
+Each entry in “Daily Profits” should show:
+
+Date (auto-generated)
+
+Total Profit earned that day
+
+The next day, profit counting starts again from zero.
+
+Clear All Orders Functionality:
+
+Add a single “Clear All Orders” button on the admin dashboard.
+
+When clicked, it should:
+
+Automatically save the current day’s profit to Daily Profits.
+
+Delete all orders from the order list.
+
+Reset the profit counter to zero.
+
+Include a confirmation popup before deleting (e.g., “Are you sure you want to clear all today’s orders?”).
+
+Analytics Enhancements:
+
+Display small summary cards showing:
+
+Total Orders Today
+
+Delivered Orders
+
+Pending Orders
+
+Daily Profit (Live total)
+
+Underneath, display a table of Daily Profits (date + total).
+
+UI and Style Updates:
+
+Align all buttons (View, Download, Delete) neatly in each row.
+
+Add soft shadows, consistent border radii, and section headers for readability.
+
+Keep the overall look clean, modern, and consistent with the homepage design.
+
+Note: Ensure all current features — notifications, order fetching, receipt download, and status updates — continue working correctly after these updates.

@@ -108,11 +108,11 @@ const Index = () => {
       </div>
 
       {/* Menu Section */}
-      <section id="menu" className="py-20 bg-background">
+      <section id="menu" className="py-12 md:py-20 bg-background">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-8">
-            <h2 className="text-4xl font-bold mb-4">Our Menu</h2>
-            <p className="text-muted-foreground text-lg">
+          <div className="text-center mb-6 md:mb-8">
+            <h2 className="text-3xl md:text-4xl font-bold mb-2 md:mb-4">Our Menu</h2>
+            <p className="text-muted-foreground text-sm md:text-lg">
               Fresh, delicious, and delivered fast
             </p>
           </div>
@@ -150,12 +150,12 @@ const Index = () => {
             </div>
           ) : (
             <>
-              {/* Snacks Section */}
-              {snacks.length > 0 && (
+              {/* Food Section - Shows FIRST */}
+              {food.length > 0 && (
                 <div className="mb-12">
-                  <h3 className="text-2xl font-bold mb-6">🍿 Snacks</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {snacks.map((item) => (
+                  <h3 className="text-2xl md:text-3xl font-bold mb-4 md:mb-6">🍔 Food</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 lg:gap-6">
+                    {food.map((item) => (
                       <MenuCard
                         key={item.id}
                         {...item}
@@ -170,12 +170,12 @@ const Index = () => {
                 </div>
               )}
 
-              {/* Food Section */}
-              {food.length > 0 && (
+              {/* Snacks Section - Shows SECOND */}
+              {snacks.length > 0 && (
                 <div>
-                  <h3 className="text-2xl font-bold mb-6">🍔 Food</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {food.map((item) => (
+                  <h3 className="text-2xl md:text-3xl font-bold mb-4 md:mb-6">🍿 Snacks</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 lg:gap-6">
+                    {snacks.map((item) => (
                       <MenuCard
                         key={item.id}
                         {...item}
