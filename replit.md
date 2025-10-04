@@ -160,5 +160,38 @@ src/
     * Routing configured in App.tsx
   - All features tested and architect-reviewed
 
+- **2025-10-04**: Homepage and Admin Dashboard Mobile Enhancements + Daily Profit Analytics
+  - **Homepage Mobile Improvements**:
+    * Implemented responsive grid: 2 columns (mobile), 3 columns (tablet), 4 columns (desktop)
+    * Made menu cards more compact on mobile: smaller text, reduced spacing, optimized images
+    * Fixed category ordering: Food category always appears before Snacks in all views
+    * Menu item view count tracking restored and working correctly
+  - **Admin Dashboard Mobile Responsiveness**:
+    * All tables now mobile-friendly with horizontal scrolling (min-width + overflow-x-auto)
+    * Responsive text sizing and padding throughout dashboard (text-xs/sm/base)
+    * Button sizing optimized for mobile screens
+    * Stats cards scale properly on small screens
+  - **Daily Profit Analytics System**:
+    * Created `daily_profits` table with migration file `supabase/migrations/20251002190000_add_daily_profits_table.sql`
+    * Added "Daily Profit" summary card (4th stat card) showing today's delivery fee total
+    * Profit calculation: sum of delivery_fee from all orders with status="delivered"
+    * Implemented "Clear All Orders" functionality with profit saving:
+      - Saves current day's profit totals to daily_profits table before deletion
+      - Includes confirmation dialog to prevent accidental data loss
+      - Recalculates stats immediately after clearing
+    * Added "Daily Profits History" section displaying 30-day profit records in table format
+    * Type workarounds using `as any` for daily_profits until Supabase types are regenerated
+  - **UI Polish**:
+    * Added shadows and hover effects to all cards (shadow-sm hover:shadow-md)
+    * Consistent styling across all dashboard sections
+    * Professional appearance with proper spacing and alignment
+  - **Files Modified**:
+    * `src/pages/Index.tsx` - responsive grid, category ordering, compact design
+    * `src/components/MenuCard.tsx` - compact mobile layout, view count tracking
+    * `src/pages/Admin.tsx` - mobile responsive tables, profit analytics, Clear All Orders
+    * `supabase/migrations/20251002190000_add_daily_profits_table.sql` - new table
+  - **ACTION REQUIRED**: User needs to apply the daily_profits migration in Supabase dashboard
+  - All features tested and architect-reviewed
+
 ## User Preferences
 None specified yet.
